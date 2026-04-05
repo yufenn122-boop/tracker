@@ -284,9 +284,61 @@
     .entry:hover .entry-actions { display: none; }
     .entry.tapped .entry-actions { display: flex; align-self: flex-start; }
   }
+  /* Password overlay */
+  #auth-overlay {
+    position: fixed;
+    inset: 0;
+    background: #1a1a2e;
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #auth-box {
+    background: white;
+    border-radius: 14px;
+    padding: 32px 28px;
+    width: 300px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  #auth-box h2 { font-size: 17px; color: #1a1a2e; text-align: center; }
+  #auth-input {
+    border: 1px solid #d0d7e3;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 15px;
+    outline: none;
+    font-family: inherit;
+    width: 100%;
+  }
+  #auth-input:focus { border-color: #4f8ef7; }
+  #auth-error { color: #e74c3c; font-size: 13px; text-align: center; min-height: 18px; }
+  #auth-btn {
+    background: #4f8ef7;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 15px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  #auth-btn:hover { background: #3a7de0; }
 </style>
 </head>
 <body>
+
+<div id="auth-overlay">
+  <div id="auth-box">
+    <h2>请输入密码</h2>
+    <input id="auth-input" type="password" placeholder="密码" />
+    <div id="auth-error"></div>
+    <button id="auth-btn">进入</button>
+  </div>
+</div>
 
 <header>
   <h1>项目进度表</h1>
@@ -318,6 +370,37 @@
 const SUPABASE_URL = 'https://rokrwejqxrpswpkzhawx.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_OpTUNdpvmVR93h-i6XB3pQ_TrWR8ikx';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const PASSWORD_HASH = '2b7d5805cbee2a961ed2633e809f05c23e2146bd4cd222959f3abfa04f2e806d';
+
+// Auth
+(function() {
+  const overlay = document.getElementById('auth-overlay');
+  const input = document.getElementById('auth-input');
+  const btn = document.getElementById('auth-btn');
+  const error = document.getElementById('auth-error');
+
+  async function tryLogin() {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(input.value);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    if (hashHex === PASSWORD_HASH) {
+      overlay.style.display = 'none';
+      loadFromDB();
+    } else {
+      error.textContent = '密码错误';
+      input.value = '';
+      input.focus();
+    }
+  }
+
+  btn.addEventListener('click', tryLogin);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+  setTimeout(() => input.focus(), 100);
+})();
 
 const DEFAULTS = ['家教', '督学群', '单片机', '自媒体', '雪花酥'];
 let state = { projects: [], entries: {} };
@@ -578,8 +661,6 @@ document.getElementById('modal-overlay').addEventListener('click', e => {
   if (e.target === document.getElementById('modal-overlay'))
     document.getElementById('modal-overlay').classList.remove('show');
 });
-
-loadFromDB();
 </script>
 </body>
 </html>

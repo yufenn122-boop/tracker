@@ -16,8 +16,42 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
   }
-  header h1 { font-size: 16px; font-weight: 600; flex: 1; }
+  header h1 { font-size: 16px; font-weight: 600; flex: 1; min-width: 80px; }
+  .header-row2 {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  #search-input {
+    flex: 1;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    outline: none;
+    background: rgba(255,255,255,0.15);
+    color: white;
+    font-family: inherit;
+    min-width: 0;
+  }
+  #search-input::placeholder { color: rgba(255,255,255,0.5); }
+  #search-input:focus { background: rgba(255,255,255,0.25); }
+  #time-filter {
+    border: none;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 12px;
+    background: rgba(255,255,255,0.15);
+    color: white;
+    outline: none;
+    cursor: pointer;
+    font-family: inherit;
+    flex-shrink: 0;
+  }
+  #time-filter option { background: #1a1a2e; color: white; }
   .header-btn {
     background: #4f8ef7;
     color: white;
@@ -284,7 +318,41 @@
     .entry:hover .entry-actions { display: none; }
     .entry.tapped .entry-actions { display: flex; align-self: flex-start; }
   }
-  /* Password overlay */
+  /* Date picker modal */
+  #date-modal {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4); z-index: 200;
+    align-items: center; justify-content: center;
+  }
+  #date-modal.show { display: flex; }
+  #date-box {
+    background: white; border-radius: 12px; padding: 24px;
+    width: 280px; box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  #date-box h2 { font-size: 15px; color: #1a1a2e; }
+  #date-box label { font-size: 13px; color: #555; display: flex; flex-direction: column; gap: 4px; }
+  #date-box input[type=date] {
+    border: 1px solid #d0d7e3; border-radius: 7px;
+    padding: 7px 10px; font-size: 13px; outline: none; font-family: inherit;
+  }
+  #date-box input[type=date]:focus { border-color: #4f8ef7; }
+  .date-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+  .date-btns button { padding: 7px 16px; border-radius: 7px; border: none; cursor: pointer; font-size: 13px; }
+
+  /* Filter badge */
+  #filter-badge {
+    display: none;
+    background: #f97316;
+    color: white;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  #filter-badge.show { display: inline-block; }
   #auth-overlay {
     position: fixed;
     inset: 0;
@@ -344,6 +412,17 @@
   <h1>项目进度表</h1>
   <button class="header-btn" id="export-btn">导出</button>
   <button class="header-btn" id="add-project-btn">+ 项目</button>
+  <div class="header-row2">
+    <input id="search-input" type="text" placeholder="搜索记录..." />
+    <select id="time-filter">
+      <option value="all">全部</option>
+      <option value="today">今日</option>
+      <option value="week">本周</option>
+      <option value="month">本月</option>
+      <option value="custom">自定义</option>
+    </select>
+    <span id="filter-badge">已筛选 ×</span>
+  </div>
 </header>
 
 <div id="board"></div>
@@ -353,6 +432,18 @@
   <input id="entry-input" type="text" placeholder="输入进度内容..." />
   <button id="submit-btn">归档</button>
 </footer>
+
+<div id="date-modal">
+  <div id="date-box">
+    <h2>自定义时间范围</h2>
+    <label>开始日期 <input type="date" id="date-start" /></label>
+    <label>结束日期 <input type="date" id="date-end" /></label>
+    <div class="date-btns">
+      <button class="btn-cancel" id="date-cancel">取消</button>
+      <button class="btn-confirm" id="date-confirm">确认</button>
+    </div>
+  </div>
+</div>
 
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal">
@@ -404,7 +495,34 @@ const PASSWORD_HASH = '2b7d5805cbee2a961ed2633e809f05c23e2146bd4cd222959f3abfa04
 
 const DEFAULTS = ['家教', '督学群', '单片机', '自媒体', '雪花酥'];
 let state = { projects: [], entries: {} };
-const openCols = new Set(); // track which cols are open on mobile
+const openCols = new Set();
+
+// Filter state
+let filterKeyword = '';
+let filterRange = { type: 'all', start: null, end: null };
+
+function getFilteredEntries(entries) {
+  return entries.filter(e => {
+    // keyword
+    if (filterKeyword && !e.text.toLowerCase().includes(filterKeyword.toLowerCase())) return false;
+    // time
+    if (filterRange.type === 'today') {
+      const d = new Date(e.ts), now = new Date();
+      if (d.toDateString() !== now.toDateString()) return false;
+    } else if (filterRange.type === 'week') {
+      const now = new Date(), day = now.getDay() || 7;
+      const weekStart = new Date(now); weekStart.setHours(0,0,0,0); weekStart.setDate(now.getDate() - day + 1);
+      if (e.ts < weekStart.getTime()) return false;
+    } else if (filterRange.type === 'month') {
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      if (e.ts < monthStart.getTime()) return false;
+    } else if (filterRange.type === 'custom' && filterRange.start && filterRange.end) {
+      if (e.ts < filterRange.start || e.ts > filterRange.end) return false;
+    }
+    return true;
+  });
+}
 
 function formatTime(ts) {
   const d = new Date(ts);
@@ -442,10 +560,24 @@ function render() {
   select.innerHTML = '';
 
   const isMobile = window.innerWidth <= 600;
+  const isFiltering = filterKeyword || filterRange.type !== 'all';
+
+  // update badge
+  const badge = document.getElementById('filter-badge');
+  badge.classList.toggle('show', isFiltering);
 
   state.projects.forEach(proj => {
-    const entries = state.entries[proj] || [];
-    const latest = entries[entries.length - 1];
+    const allEntries = state.entries[proj] || [];
+    const entries = getFilteredEntries(allEntries);
+    const latest = allEntries[allEntries.length - 1];
+
+    // hide column if filtering and no results
+    if (isFiltering && entries.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = proj; opt.textContent = proj;
+      select.appendChild(opt);
+      return;
+    }
 
     const col = document.createElement('div');
     col.className = 'column' + (openCols.has(proj) ? ' open' : '');
@@ -453,14 +585,14 @@ function render() {
     const entriesHtml = entries.length === 0
       ? '<div class="empty-hint">暂无记录</div>'
       : entries.map((e, i) => `
-          <div class="entry ${e.status}" data-id="${e.id}" data-proj="${proj}" data-idx="${i}">
-            <button class="status-btn" data-id="${e.id}" data-proj="${proj}" data-idx="${i}">${e.status === 'todo' ? '待办' : '完成'}</button>
+          <div class="entry ${e.status}" data-id="${e.id}" data-proj="${proj}" data-idx="${allEntries.indexOf(e)}">
+            <button class="status-btn" data-id="${e.id}" data-proj="${proj}" data-idx="${allEntries.indexOf(e)}">${e.status === 'todo' ? '待办' : '完成'}</button>
             <div class="entry-body">
               <div class="entry-text">${e.text}</div>
               <div class="entry-time">${formatTime(e.ts)}</div>
             </div>
             <div class="entry-actions">
-              <button class="edit-btn" data-id="${e.id}" data-proj="${proj}" data-idx="${i}">✎</button>
+              <button class="edit-btn" data-id="${e.id}" data-proj="${proj}" data-idx="${allEntries.indexOf(e)}">✎</button>
               <button class="delete-entry" data-id="${e.id}" data-proj="${proj}">🗑</button>
             </div>
           </div>`).join('');
@@ -474,7 +606,7 @@ function render() {
         <div class="col-header-left">
           <span class="col-chevron">▼</span>
           <span class="col-title">${proj}</span>
-          <span class="col-count">${entries.length}</span>
+          <span class="col-count">${entries.length}${isFiltering ? '/'+allEntries.length : ''}</span>
         </div>
         <button class="delete-col" data-proj="${proj}">×</button>
       </div>
@@ -483,12 +615,15 @@ function render() {
     `;
     board.appendChild(col);
 
-    // scroll to bottom when open
     if (!isMobile || openCols.has(proj)) {
       const colEntries = col.querySelector('.col-entries');
       colEntries.scrollTop = colEntries.scrollHeight;
     }
 
+    const opt = document.createElement('option');
+    opt.value = proj; opt.textContent = proj;
+    select.appendChild(opt);
+  });
     const opt = document.createElement('option');
     opt.value = proj;
     opt.textContent = proj;
@@ -660,6 +795,50 @@ document.getElementById('modal-input').addEventListener('keydown', e => {
 document.getElementById('modal-overlay').addEventListener('click', e => {
   if (e.target === document.getElementById('modal-overlay'))
     document.getElementById('modal-overlay').classList.remove('show');
+});
+
+// Search
+document.getElementById('search-input').addEventListener('input', e => {
+  filterKeyword = e.target.value;
+  render();
+});
+
+// Time filter
+document.getElementById('time-filter').addEventListener('change', e => {
+  const val = e.target.value;
+  if (val === 'custom') {
+    document.getElementById('date-modal').classList.add('show');
+    return;
+  }
+  filterRange = { type: val, start: null, end: null };
+  render();
+});
+
+// Date modal
+document.getElementById('date-confirm').addEventListener('click', () => {
+  const start = document.getElementById('date-start').value;
+  const end = document.getElementById('date-end').value;
+  if (!start || !end) return;
+  filterRange = {
+    type: 'custom',
+    start: new Date(start).getTime(),
+    end: new Date(end).getTime() + 86399999
+  };
+  document.getElementById('date-modal').classList.remove('show');
+  render();
+});
+document.getElementById('date-cancel').addEventListener('click', () => {
+  document.getElementById('time-filter').value = filterRange.type === 'custom' ? 'custom' : 'all';
+  document.getElementById('date-modal').classList.remove('show');
+});
+
+// Clear filter badge
+document.getElementById('filter-badge').addEventListener('click', () => {
+  filterKeyword = '';
+  filterRange = { type: 'all', start: null, end: null };
+  document.getElementById('search-input').value = '';
+  document.getElementById('time-filter').value = 'all';
+  render();
 });
 </script>
 </body>

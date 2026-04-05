@@ -99,8 +99,12 @@
     justify-content: space-between;
     background: #f7f9ff;
     border-radius: 10px 10px 0 0;
-    cursor: default;
+    cursor: grab;
+    user-select: none;
   }
+  .col-header:active { cursor: grabbing; }
+  .column.dragging { opacity: 0.4; }
+  .column.drag-over { outline: 2px dashed #4f8ef7; outline-offset: 2px; }
   .col-header-left { display: flex; align-items: center; gap: 8px; }
   .col-header span.col-title { color: #1a1a2e; }
   .col-count {
@@ -498,6 +502,14 @@ const DEFAULTS = ['家教', '督学群', '单片机', '自媒体', '雪花酥'];
 let state = { projects: [], entries: {} };
 const openCols = new Set();
 
+// Project order persistence
+function saveOrder() {
+  localStorage.setItem('proj_order', JSON.stringify(state.projects));
+}
+function loadOrder() {
+  try { return JSON.parse(localStorage.getItem('proj_order')) || []; } catch { return []; }
+}
+
 // Filter state
 let filterKeyword = '';
 let filterRange = { type: 'all', start: null, end: null };
@@ -548,6 +560,15 @@ async function loadFromDB() {
   });
 
   state.projects = Array.from(projects);
+
+  // Apply saved order
+  const savedOrder = loadOrder();
+  if (savedOrder.length) {
+    const ordered = savedOrder.filter(p => state.projects.includes(p));
+    const rest = state.projects.filter(p => !ordered.includes(p));
+    state.projects = [...ordered, ...rest];
+  }
+
   state.entries = entries;
   render();
 }
@@ -615,6 +636,77 @@ function render() {
       <div class="col-entries" id="col-${proj}">${entriesHtml}</div>
     `;
     board.appendChild(col);
+
+    // Drag and drop
+    const header = col.querySelector('.col-header');
+    col.draggable = true;
+    col.addEventListener('dragstart', (e) => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', proj);
+      setTimeout(() => col.classList.add('dragging'), 0);
+    });
+    col.addEventListener('dragend', () => {
+      col.classList.remove('dragging');
+      document.querySelectorAll('.column').forEach(c => c.classList.remove('drag-over'));
+    });
+    col.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      document.querySelectorAll('.column').forEach(c => c.classList.remove('drag-over'));
+      col.classList.add('drag-over');
+    });
+    col.addEventListener('dragleave', () => col.classList.remove('drag-over'));
+    col.addEventListener('drop', (e) => {
+      e.preventDefault();
+      col.classList.remove('drag-over');
+      const fromProj = e.dataTransfer.getData('text/plain');
+      const toProj = proj;
+      if (fromProj === toProj) return;
+      const fromIdx = state.projects.indexOf(fromProj);
+      const toIdx = state.projects.indexOf(toProj);
+      state.projects.splice(fromIdx, 1);
+      state.projects.splice(toIdx, 0, fromProj);
+      saveOrder();
+      render();
+    });
+
+    // Mobile long-press drag (touch)
+    let touchDragProj = null, longPressTimer = null;
+    header.addEventListener('touchstart', (e) => {
+      if (e.target.classList.contains('delete-col')) return;
+      longPressTimer = setTimeout(() => {
+        touchDragProj = proj;
+        col.classList.add('dragging');
+        navigator.vibrate && navigator.vibrate(40);
+      }, 500);
+    }, { passive: true });
+    header.addEventListener('touchend', () => {
+      clearTimeout(longPressTimer);
+      if (touchDragProj) {
+        col.classList.remove('dragging');
+        touchDragProj = null;
+      }
+    });
+    header.addEventListener('touchmove', (e) => {
+      if (!touchDragProj) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      const targetCol = el && el.closest('.column');
+      document.querySelectorAll('.column').forEach(c => c.classList.remove('drag-over'));
+      if (targetCol && targetCol !== col) {
+        targetCol.classList.add('drag-over');
+        const toProj = targetCol.querySelector('.col-title').textContent;
+        const fromIdx = state.projects.indexOf(touchDragProj);
+        const toIdx = state.projects.indexOf(toProj);
+        if (fromIdx !== toIdx) {
+          state.projects.splice(fromIdx, 1);
+          state.projects.splice(toIdx, 0, touchDragProj);
+          saveOrder();
+          render();
+        }
+      }
+    }, { passive: false });
 
     if (!isMobile || openCols.has(proj)) {
       const colEntries = col.querySelector('.col-entries');

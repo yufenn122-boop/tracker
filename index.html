@@ -104,40 +104,36 @@
   /* Entry */
   .entry {
     border-radius: 6px;
-    padding: 8px 10px 8px 36px;
+    padding: 8px 10px 8px 10px;
     font-size: 13px;
     color: #333;
     position: relative;
-    border: 2px solid #e0e0e0;
-    background: #fafafa;
-    transition: border-color 0.2s, background 0.2s;
+    border: none;
+    transition: background 0.2s;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
   }
-  .entry.todo { border-color: #e74c3c; background: #fff5f5; }
-  .entry.done { border-color: #27ae60; background: #f0fff4; }
+  .entry.todo { background: #fff3e0; }
+  .entry.done { background: #f0fff4; }
   .entry.done .entry-text { text-decoration: line-through; color: #999; }
 
   .status-btn {
-    position: absolute;
-    left: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    border: 2px solid #ccc;
-    background: white;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px;
-    transition: all 0.2s;
     flex-shrink: 0;
-    padding: 0;
+    border-radius: 6px;
+    border: 1px solid rgba(0,0,0,0.15);
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    white-space: nowrap;
+    transition: opacity 0.2s;
+    margin-top: 1px;
   }
-  .entry.todo .status-btn { border-color: #e74c3c; background: #e74c3c; color: white; }
-  .entry.done .status-btn { border-color: #27ae60; background: #27ae60; color: white; }
+  .entry.todo .status-btn { background: #f97316; color: white; }
+  .entry.done .status-btn { background: #27ae60; color: white; }
 
+  .entry-body { flex: 1; min-width: 0; }
   .entry-text { word-break: break-all; outline: none; min-height: 1em; }
   .entry-text[contenteditable="true"] {
     background: #fffbe6;
@@ -146,7 +142,7 @@
     box-shadow: 0 0 0 1px #f0c040;
   }
   .entry .entry-time { font-size: 10px; color: #aaa; margin-top: 4px; }
-  .entry-actions { position: absolute; top: 6px; right: 6px; display: none; gap: 4px; }
+  .entry-actions { display: none; gap: 4px; flex-shrink: 0; align-self: flex-start; margin-top: 1px; }
   .entry:hover .entry-actions { display: flex; }
   .entry-actions button {
     background: none; border: none; cursor: pointer;
@@ -267,19 +263,26 @@
       border-radius: 0 0 10px 10px;
     }
     .column.open .col-preview { display: none; }
-    .col-preview .preview-status {
+    .col-preview .preview-label {
       display: inline-block;
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      margin-right: 5px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 6px;
+      margin-right: 6px;
+      vertical-align: middle;
+      color: white;
+    }
+    .preview-label.todo { background: #f97316; }
+    .preview-label.done { background: #27ae60; }
+    .preview-label.empty { display: none; }
+    .col-preview .preview-text {
       vertical-align: middle;
     }
-    .preview-status.todo { background: #e74c3c; }
-    .preview-status.done { background: #27ae60; }
 
-    /* show entry-actions on mobile via tap (handled by touch) */
+    /* show entry-actions on mobile via tap */
     .entry:hover .entry-actions { display: none; }
-    .entry.tapped .entry-actions { display: flex; }
+    .entry.tapped .entry-actions { display: flex; align-self: flex-start; }
   }
 </style>
 </head>
@@ -325,9 +328,6 @@ function formatTime(ts) {
   return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 
-function statusIcon(status) {
-  return status === 'done' ? '✓' : '!';
-}
 
 async function loadFromDB() {
   const { data, error } = await sb.from('entries').select('*').order('ts', { ascending: true });
@@ -371,9 +371,11 @@ function render() {
       ? '<div class="empty-hint">暂无记录</div>'
       : entries.map((e, i) => `
           <div class="entry ${e.status}" data-id="${e.id}" data-proj="${proj}" data-idx="${i}">
-            <button class="status-btn" data-id="${e.id}" data-proj="${proj}" data-idx="${i}">${statusIcon(e.status)}</button>
-            <div class="entry-text">${e.text}</div>
-            <div class="entry-time">${formatTime(e.ts)}</div>
+            <button class="status-btn" data-id="${e.id}" data-proj="${proj}" data-idx="${i}">${e.status === 'todo' ? '待办' : '完成'}</button>
+            <div class="entry-body">
+              <div class="entry-text">${e.text}</div>
+              <div class="entry-time">${formatTime(e.ts)}</div>
+            </div>
             <div class="entry-actions">
               <button class="edit-btn" data-id="${e.id}" data-proj="${proj}" data-idx="${i}">✎</button>
               <button class="delete-entry" data-id="${e.id}" data-proj="${proj}">×</button>
@@ -381,7 +383,7 @@ function render() {
           </div>`).join('');
 
     const previewHtml = latest
-      ? `<span class="preview-status ${latest.status}"></span>${latest.text}`
+      ? `<span class="preview-label ${latest.status}">${latest.status === 'todo' ? '当前进度' : '已完成'}</span><span class="preview-text">${latest.text}</span>`
       : '暂无记录';
 
     col.innerHTML = `

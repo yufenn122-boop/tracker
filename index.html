@@ -12,25 +12,27 @@
   header {
     background: #1a1a2e;
     color: white;
-    padding: 16px 24px;
+    padding: 12px 16px;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
   }
-  header h1 { font-size: 18px; font-weight: 600; flex: 1; }
+  header h1 { font-size: 16px; font-weight: 600; flex: 1; }
   .header-btn {
     background: #4f8ef7;
     color: white;
     border: none;
-    padding: 6px 14px;
+    padding: 6px 12px;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 12px;
+    white-space: nowrap;
   }
   .header-btn:hover { background: #3a7de0; }
   #export-btn { background: #27ae60; }
   #export-btn:hover { background: #1e8449; }
 
+  /* ── Desktop: horizontal board ── */
   #board {
     flex: 1;
     display: flex;
@@ -63,8 +65,10 @@
     justify-content: space-between;
     background: #f7f9ff;
     border-radius: 10px 10px 0 0;
+    cursor: default;
   }
-  .col-header span { color: #1a1a2e; }
+  .col-header-left { display: flex; align-items: center; gap: 8px; }
+  .col-header span.col-title { color: #1a1a2e; }
   .col-count {
     background: #4f8ef7;
     color: white;
@@ -73,6 +77,7 @@
     padding: 1px 7px;
     font-weight: 500;
   }
+  .col-chevron { display: none; font-size: 12px; color: #aaa; transition: transform 0.2s; }
   .delete-col {
     background: none;
     border: none;
@@ -84,6 +89,9 @@
   }
   .delete-col:hover { color: #e74c3c; }
 
+  /* current progress preview — hidden on desktop */
+  .col-preview { display: none; }
+
   .col-entries {
     flex: 1;
     overflow-y: auto;
@@ -93,7 +101,7 @@
     gap: 8px;
   }
 
-  /* Entry base */
+  /* Entry */
   .entry {
     border-radius: 6px;
     padding: 8px 10px 8px 36px;
@@ -104,20 +112,10 @@
     background: #fafafa;
     transition: border-color 0.2s, background 0.2s;
   }
-  .entry.todo {
-    border-color: #e74c3c;
-    background: #fff5f5;
-  }
-  .entry.done {
-    border-color: #27ae60;
-    background: #f0fff4;
-  }
-  .entry.done .entry-text {
-    text-decoration: line-through;
-    color: #999;
-  }
+  .entry.todo { border-color: #e74c3c; background: #fff5f5; }
+  .entry.done { border-color: #27ae60; background: #f0fff4; }
+  .entry.done .entry-text { text-decoration: line-through; color: #999; }
 
-  /* Status toggle button */
   .status-btn {
     position: absolute;
     left: 8px;
@@ -140,72 +138,46 @@
   .entry.todo .status-btn { border-color: #e74c3c; background: #e74c3c; color: white; }
   .entry.done .status-btn { border-color: #27ae60; background: #27ae60; color: white; }
 
-  .entry-text {
-    word-break: break-all;
-    outline: none;
-    min-height: 1em;
-  }
+  .entry-text { word-break: break-all; outline: none; min-height: 1em; }
   .entry-text[contenteditable="true"] {
     background: #fffbe6;
     border-radius: 3px;
     padding: 1px 3px;
     box-shadow: 0 0 0 1px #f0c040;
   }
-
-  .entry .entry-time {
-    font-size: 10px;
-    color: #aaa;
-    margin-top: 4px;
-  }
-  .entry-actions {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    display: none;
-    gap: 4px;
-  }
+  .entry .entry-time { font-size: 10px; color: #aaa; margin-top: 4px; }
+  .entry-actions { position: absolute; top: 6px; right: 6px; display: none; gap: 4px; }
   .entry:hover .entry-actions { display: flex; }
   .entry-actions button {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 11px;
-    color: #bbb;
-    padding: 1px 3px;
-    border-radius: 3px;
+    background: none; border: none; cursor: pointer;
+    font-size: 11px; color: #bbb; padding: 1px 3px; border-radius: 3px;
   }
   .entry-actions .edit-btn:hover { color: #4f8ef7; background: #eef3ff; }
   .entry-actions .delete-entry:hover { color: #e74c3c; background: #fff0f0; }
 
-  .empty-hint {
-    color: #ccc;
-    font-size: 12px;
-    text-align: center;
-    padding: 20px 0;
-  }
+  .empty-hint { color: #ccc; font-size: 12px; text-align: center; padding: 20px 0; }
 
+  /* Footer */
   footer {
     background: white;
     border-top: 1px solid #e8e8e8;
-    padding: 12px 16px;
+    padding: 10px 16px;
     display: flex;
     gap: 8px;
     align-items: center;
-    flex-wrap: wrap;
     width: 100%;
-    max-width: 100vw;
   }
 
   #project-select {
     border: 1px solid #d0d7e3;
     border-radius: 8px;
-    padding: 9px 12px;
-    font-size: 14px;
+    padding: 8px 8px;
+    font-size: 13px;
     background: white;
     color: #333;
-    min-width: 100px;
-    max-width: 130px;
+    width: 90px;
     outline: none;
+    flex-shrink: 0;
   }
   #project-select:focus { border-color: #4f8ef7; }
 
@@ -213,84 +185,110 @@
     flex: 1;
     border: 1px solid #d0d7e3;
     border-radius: 8px;
-    padding: 9px 14px;
+    padding: 8px 12px;
     font-size: 14px;
     outline: none;
     font-family: inherit;
+    min-width: 0;
   }
   #entry-input:focus { border-color: #4f8ef7; }
-
-  #status-select {
-    border: 1px solid #d0d7e3;
-    border-radius: 8px;
-    padding: 9px 10px;
-    font-size: 13px;
-    background: white;
-    color: #333;
-    outline: none;
-    cursor: pointer;
-  }
 
   #submit-btn {
     background: #4f8ef7;
     color: white;
     border: none;
-    padding: 9px 20px;
+    padding: 8px 16px;
     border-radius: 8px;
     cursor: pointer;
     font-size: 14px;
     white-space: nowrap;
+    flex-shrink: 0;
   }
   #submit-btn:hover { background: #3a7de0; }
 
   /* Modal */
   .modal-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.4);
-    z-index: 100;
-    align-items: center;
-    justify-content: center;
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4); z-index: 100;
+    align-items: center; justify-content: center;
   }
   .modal-overlay.show { display: flex; }
   .modal {
-    background: white;
-    border-radius: 12px;
-    padding: 24px;
-    width: 320px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    background: white; border-radius: 12px; padding: 24px;
+    width: 300px; box-shadow: 0 8px 32px rgba(0,0,0,0.15);
   }
   .modal h2 { font-size: 16px; margin-bottom: 16px; color: #1a1a2e; }
   .modal input {
-    width: 100%;
-    border: 1px solid #d0d7e3;
-    border-radius: 8px;
-    padding: 9px 12px;
-    font-size: 14px;
-    outline: none;
-    margin-bottom: 14px;
+    width: 100%; border: 1px solid #d0d7e3; border-radius: 8px;
+    padding: 9px 12px; font-size: 14px; outline: none; margin-bottom: 14px;
   }
   .modal input:focus { border-color: #4f8ef7; }
   .modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
-  .modal-btns button {
-    padding: 7px 18px;
-    border-radius: 7px;
-    border: none;
-    cursor: pointer;
-    font-size: 13px;
-  }
+  .modal-btns button { padding: 7px 18px; border-radius: 7px; border: none; cursor: pointer; font-size: 13px; }
   .btn-cancel { background: #f0f2f5; color: #666; }
   .btn-confirm { background: #4f8ef7; color: white; }
-  .btn-confirm:hover { background: #3a7de0; }
+
+  /* ── Mobile ── */
+  @media (max-width: 600px) {
+    #board {
+      flex-direction: column;
+      overflow-x: hidden;
+      padding: 12px;
+      gap: 10px;
+    }
+
+    .column {
+      width: 100%;
+      min-width: unset;
+      max-height: none;
+      overflow: hidden;
+    }
+
+    /* collapsed by default on mobile */
+    .column .col-entries { display: none; }
+    .column.open .col-entries { display: flex; max-height: 60vh; overflow-y: auto; }
+
+    .col-header { cursor: pointer; border-radius: 10px; border-bottom: none; }
+    .column.open .col-header { border-radius: 10px 10px 0 0; border-bottom: 2px solid #4f8ef7; }
+
+    .col-chevron { display: inline-block; }
+    .column.open .col-chevron { transform: rotate(180deg); }
+
+    /* current progress preview */
+    .col-preview {
+      display: block;
+      padding: 6px 14px 10px;
+      font-size: 12px;
+      color: #666;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      background: white;
+      border-radius: 0 0 10px 10px;
+    }
+    .column.open .col-preview { display: none; }
+    .col-preview .preview-status {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      margin-right: 5px;
+      vertical-align: middle;
+    }
+    .preview-status.todo { background: #e74c3c; }
+    .preview-status.done { background: #27ae60; }
+
+    /* show entry-actions on mobile via tap (handled by touch) */
+    .entry:hover .entry-actions { display: none; }
+    .entry.tapped .entry-actions { display: flex; }
+  }
 </style>
 </head>
 <body>
 
 <header>
   <h1>项目进度表</h1>
-  <button class="header-btn" id="export-btn">导出 JSON</button>
-  <button class="header-btn" id="add-project-btn">+ 新增项目</button>
+  <button class="header-btn" id="export-btn">导出</button>
+  <button class="header-btn" id="add-project-btn">+ 项目</button>
 </header>
 
 <div id="board"></div>
@@ -301,7 +299,6 @@
   <button id="submit-btn">归档</button>
 </footer>
 
-<!-- Modal -->
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal">
     <h2>新增项目</h2>
@@ -320,9 +317,8 @@ const SUPABASE_KEY = 'sb_publishable_OpTUNdpvmVR93h-i6XB3pQ_TrWR8ikx';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const DEFAULTS = ['家教', '督学群', '单片机', '自媒体', '雪花酥'];
-
-// In-memory state
 let state = { projects: [], entries: {} };
+const openCols = new Set(); // track which cols are open on mobile
 
 function formatTime(ts) {
   const d = new Date(ts);
@@ -330,17 +326,13 @@ function formatTime(ts) {
 }
 
 function statusIcon(status) {
-  if (status === 'todo') return '!';
-  if (status === 'done') return '✓';
-  return '';
+  return status === 'done' ? '✓' : '!';
 }
 
-// Load all entries from Supabase
 async function loadFromDB() {
   const { data, error } = await sb.from('entries').select('*').order('ts', { ascending: true });
   if (error) { console.error(error); return; }
 
-  // Rebuild state
   const projects = new Set(DEFAULTS);
   const entries = {};
   DEFAULTS.forEach(p => entries[p] = []);
@@ -366,39 +358,51 @@ function render() {
   board.innerHTML = '';
   select.innerHTML = '';
 
+  const isMobile = window.innerWidth <= 600;
+
   state.projects.forEach(proj => {
     const entries = state.entries[proj] || [];
+    const latest = entries[entries.length - 1];
 
     const col = document.createElement('div');
-    col.className = 'column';
+    col.className = 'column' + (openCols.has(proj) ? ' open' : '');
 
     const entriesHtml = entries.length === 0
       ? '<div class="empty-hint">暂无记录</div>'
       : entries.map((e, i) => `
           <div class="entry ${e.status}" data-id="${e.id}" data-proj="${proj}" data-idx="${i}">
-            <button class="status-btn" data-id="${e.id}" data-proj="${proj}" data-idx="${i}" title="切换状态">${statusIcon(e.status)}</button>
+            <button class="status-btn" data-id="${e.id}" data-proj="${proj}" data-idx="${i}">${statusIcon(e.status)}</button>
             <div class="entry-text">${e.text}</div>
             <div class="entry-time">${formatTime(e.ts)}</div>
             <div class="entry-actions">
-              <button class="edit-btn" data-id="${e.id}" data-proj="${proj}" data-idx="${i}" title="编辑">✎</button>
-              <button class="delete-entry" data-id="${e.id}" data-proj="${proj}" title="删除">×</button>
+              <button class="edit-btn" data-id="${e.id}" data-proj="${proj}" data-idx="${i}">✎</button>
+              <button class="delete-entry" data-id="${e.id}" data-proj="${proj}">×</button>
             </div>
           </div>`).join('');
 
+    const previewHtml = latest
+      ? `<span class="preview-status ${latest.status}"></span>${latest.text}`
+      : '暂无记录';
+
     col.innerHTML = `
       <div class="col-header">
-        <span>${proj}</span>
-        <div style="display:flex;align-items:center;gap:6px">
+        <div class="col-header-left">
+          <span class="col-chevron">▼</span>
+          <span class="col-title">${proj}</span>
           <span class="col-count">${entries.length}</span>
-          <button class="delete-col" data-proj="${proj}" title="删除项目">×</button>
         </div>
+        <button class="delete-col" data-proj="${proj}">×</button>
       </div>
+      <div class="col-preview">${previewHtml}</div>
       <div class="col-entries" id="col-${proj}">${entriesHtml}</div>
     `;
     board.appendChild(col);
 
-    const colEntries = col.querySelector('.col-entries');
-    colEntries.scrollTop = colEntries.scrollHeight;
+    // scroll to bottom when open
+    if (!isMobile || openCols.has(proj)) {
+      const colEntries = col.querySelector('.col-entries');
+      colEntries.scrollTop = colEntries.scrollHeight;
+    }
 
     const opt = document.createElement('option');
     opt.value = proj;
@@ -410,21 +414,47 @@ function render() {
     select.value = prevSelected;
   }
 
+  // Mobile: toggle open/close on header click
+  document.querySelectorAll('.col-header').forEach(header => {
+    header.addEventListener('click', (e) => {
+      if (e.target.classList.contains('delete-col')) return;
+      if (!window.matchMedia('(max-width: 600px)').matches) return;
+      const col = header.closest('.column');
+      const proj = col.querySelector('.col-title').textContent;
+      if (openCols.has(proj)) openCols.delete(proj);
+      else openCols.add(proj);
+      render();
+    });
+  });
+
+  // Mobile: tap entry to show actions
+  document.querySelectorAll('.entry').forEach(entry => {
+    entry.addEventListener('click', (e) => {
+      if (!window.matchMedia('(max-width: 600px)').matches) return;
+      if (e.target.closest('.entry-actions') || e.target.classList.contains('status-btn')) return;
+      document.querySelectorAll('.entry.tapped').forEach(el => el.classList.remove('tapped'));
+      entry.classList.toggle('tapped');
+    });
+  });
+
   // Delete column
   document.querySelectorAll('.delete-col').forEach(btn => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
       const proj = btn.dataset.proj;
       if (!confirm(`确认删除项目「${proj}」及其所有记录？`)) return;
       await sb.from('entries').delete().eq('project', proj);
       state.projects = state.projects.filter(p => p !== proj);
       delete state.entries[proj];
+      openCols.delete(proj);
       render();
     });
   });
 
   // Toggle status
   document.querySelectorAll('.status-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
       const { id, proj, idx } = btn.dataset;
       const entry = state.entries[proj][Number(idx)];
       const newStatus = entry.status === 'todo' ? 'done' : 'todo';
@@ -434,9 +464,10 @@ function render() {
     });
   });
 
-  // Edit entry (inline)
+  // Edit entry
   document.querySelectorAll('.edit-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
       const { id, proj, idx } = btn.dataset;
       const entryEl = btn.closest('.entry');
       const textEl = entryEl.querySelector('.entry-text');
@@ -471,7 +502,8 @@ function render() {
 
   // Delete entry
   document.querySelectorAll('.delete-entry').forEach(btn => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
       const { id, proj } = btn.dataset;
       await sb.from('entries').delete().eq('id', id);
       state.entries[proj] = state.entries[proj].filter(e => e.id != id);
@@ -493,13 +525,15 @@ async function addEntry() {
   state.entries[proj].push({ id: data.id, text, status: 'todo', ts });
 
   document.getElementById('entry-input').value = '';
+
+  // auto-open that column on mobile
+  openCols.add(proj);
   render();
 
   const col = document.getElementById(`col-${proj}`);
   if (col) col.scrollTop = col.scrollHeight;
 }
 
-// Export JSON
 document.getElementById('export-btn').addEventListener('click', () => {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -510,13 +544,11 @@ document.getElementById('export-btn').addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
-// Submit
 document.getElementById('submit-btn').addEventListener('click', addEntry);
 document.getElementById('entry-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') addEntry();
 });
 
-// Add project modal
 document.getElementById('add-project-btn').addEventListener('click', () => {
   document.getElementById('modal-overlay').classList.add('show');
   document.getElementById('modal-input').value = '';
@@ -544,7 +576,6 @@ document.getElementById('modal-overlay').addEventListener('click', e => {
     document.getElementById('modal-overlay').classList.remove('show');
 });
 
-// Init
 loadFromDB();
 </script>
 </body>

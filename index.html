@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>项目进度表</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { max-width: 100vw; overflow-x: hidden; }
+  body { font-family: 'Microsoft YaHei', sans-serif; background: #f0f2f5; min-height: 100vh; display: flex; flex-direction: column; }
+
+  header {
+    background: #1a1a2e;
+    color: white;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 16px; font-weight: 600; flex: 1; min-width: 80px; }
+  .header-row2 {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  #search-input {
+    flex: 1;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    outline: none;
+    background: rgba(255,255,255,0.15);
+    color: white;
+    font-family: inherit;
+    min-width: 0;
+  }
+  #search-input::placeholder { color: rgba(255,255,255,0.5); }
+  #search-input:focus { background: rgba(255,255,255,0.25); }
+  #time-filter {
+    border: none;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 12px;
+    background: rgba(255,255,255,0.15);
+    color: white;
+    outline: none;
+    cursor: pointer;
+    font-family: inherit;
+    flex-shrink: 0;
+  }
+  #time-filter option { background: #1a1a2e; color: white; }
+  .header-btn {
+    background: #4f8ef7;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .header-btn:hover { background: #3a7de0; }
+  #export-btn { background: #27ae60; }
+  #export-btn:hover { background: #1e8449; }
+
+  /* ── Desktop: horizontal board ── */
+  #board {
+    flex: 1;
+    display: flex;
+    gap: 16px;
+    padding: 20px 16px;
+    overflow-x: auto;
+    align-items: flex-start;
+    max-width: 100vw;
+  }
+
+  .column {
+    background: white;
+    border-radius: 10px;
+    min-width: 210px;
+    width: 210px;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 180px);
+  }
+
+  .col-header {
+    padding: 12px 14px;
+    font-weight: 600;
+    font-size: 14px;
+    border-bottom: 2px solid #4f8ef7;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #f7f9ff;
+    border-radius: 10px 10px 0 0;
+    cursor: default;
+  }
+  .col-header-left { display: flex; align-items: center; gap: 8px; }
+  .col-header span.col-title { color: #1a1a2e; }
+  .col-count {
+    background: #4f8ef7;
+    color: white;
+    border-radius: 10px;
+    font-size: 11px;
+    padding: 1px 7px;
+    font-weight: 500;
+  }
+  .col-chevron { display: none; font-size: 12px; color: #aaa; transition: transform 0.2s; }
+  .delete-col {
+    background: none;
+    border: none;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 2px;
+    line-height: 1;
+  }
+  .delete-col:hover { color: #e74c3c; }
+
+  /* current progress preview — hidden on desktop */
+  .col-preview { display: none; }
+
+  .col-entries {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 10px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* Entry */
+  .entry {
+    border-radius: 6px;
+    padding: 8px 10px 8px 10px;
+    font-size: 13px;
+    color: #333;
+    position: relative;
+    border: none;
+    transition: background 0.2s;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .entry.todo { background: #fff3e0; }
+  .entry.done { background: #f0fff4; }
+  .entry.done .entry-text { text-decoration: line-through; color: #999; }
+
+  .status-btn {
+    flex-shrink: 0;
+    border-radius: 6px;
+    border: 1px solid rgba(0,0,0,0.15);
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    white-space: nowrap;
+    transition: opacity 0.2s;
+    margin-top: 1px;
+  }
+  .entry.todo .status-btn { background: #f97316; color: white; }
+  .entry.done .status-btn { background: #27ae60; color: white; }
+
+  .entry-body { flex: 1; min-width: 0; }
+  .entry-text { word-break: break-all; outline: none; min-height: 1em; }
+  .entry-text[contenteditable="true"] {
+    background: #fffbe6;
+    border-radius: 3px;
+    padding: 1px 3px;
+    box-shadow: 0 0 0 1px #f0c040;
+  }
+  .entry .entry-time { font-size: 10px; color: #aaa; margin-top: 4px; }
+  .entry-actions { display: none; gap: 4px; flex-shrink: 0; align-self: flex-start; margin-top: 1px; }
+  .entry:hover .entry-actions { display: flex; }
+  .entry-actions button {
+    background: none; border: none; cursor: pointer;
+    font-size: 15px; color: #bbb; padding: 2px 5px; border-radius: 3px;
+  }
+  .entry-actions .edit-btn:hover { color: #4f8ef7; background: #eef3ff; }
+  .entry-actions .delete-entry:hover { color: #e74c3c; background: #fff0f0; }
+
+  .empty-hint { color: #ccc; font-size: 12px; text-align: center; padding: 20px 0; }
+
+  /* Footer */
+  footer {
+    background: white;
+    border-top: 1px solid #e8e8e8;
+    padding: 10px 16px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+  }
+
+  #project-select {
+    border: 1px solid #d0d7e3;
+    border-radius: 8px;
+    padding: 8px 8px;
+    font-size: 13px;
+    background: white;
+    color: #333;
+    width: 90px;
+    outline: none;
+    flex-shrink: 0;
+  }
+  #project-select:focus { border-color: #4f8ef7; }
+
+  #entry-input {
+    flex: 1;
+    border: 1px solid #d0d7e3;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 14px;
+    outline: none;
+    font-family: inherit;
+    min-width: 0;
+  }
+  #entry-input:focus { border-color: #4f8ef7; }
+
+  #submit-btn {
+    background: #4f8ef7;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  #submit-btn:hover { background: #3a7de0; }
+
+  /* Modal */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4); z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: white; border-radius: 12px; padding: 24px;
+    width: 300px; box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  }
+  .modal h2 { font-size: 16px; margin-bottom: 16px; color: #1a1a2e; }
+  .modal input {
+    width: 100%; border: 1px solid #d0d7e3; border-radius: 8px;
+    padding: 9px 12px; font-size: 14px; outline: none; margin-bottom: 14px;
+  }
+  .modal input:focus { border-color: #4f8ef7; }
+  .modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+  .modal-btns button { padding: 7px 18px; border-radius: 7px; border: none; cursor: pointer; font-size: 13px; }
+  .btn-cancel { background: #f0f2f5; color: #666; }
+  .btn-confirm { background: #4f8ef7; color: white; }
+
+  /* ── Mobile ── */
+  @media (max-width: 600px) {
+    #board {
+      flex-direction: column;
+      overflow-x: hidden;
+      padding: 12px;
+      gap: 10px;
+    }
+
+    .column {
+      width: 100%;
+      min-width: unset;
+      max-height: none;
+      overflow: hidden;
+    }
+
+    /* collapsed by default on mobile */
+    .column .col-entries { display: none; }
+    .column.open .col-entries { display: flex; max-height: 60vh; overflow-y: auto; }
+
+    .col-header { cursor: pointer; border-radius: 10px; border-bottom: none; }
+    .column.open .col-header { border-radius: 10px 10px 0 0; border-bottom: 2px solid #4f8ef7; }
+
+    .col-chevron { display: inline-block; }
+    .column.open .col-chevron { transform: rotate(180deg); }
+
+    /* current progress preview */
+    .col-preview {
+      display: block;
+      padding: 6px 14px 10px;
+      font-size: 12px;
+      color: #666;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      background: white;
+      border-radius: 0 0 10px 10px;
+    }
+    .column.open .col-preview { display: none; }
+    .col-preview .preview-label {
+      display: inline-block;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 6px;
+      margin-right: 6px;
+      vertical-align: middle;
+      color: white;
+    }
+    .preview-label.todo { background: #f97316; }
+    .preview-label.done { background: #27ae60; }
+    .preview-label.empty { display: none; }
+    .col-preview .preview-text {
+      vertical-align: middle;
+    }
+
+    /* show entry-actions on mobile via tap */
+    .entry:hover .entry-actions { display: none; }
+    .entry.tapped .entry-actions { display: flex; align-self: flex-start; }
+  }
+  /* Date picker modal */
+  #date-modal {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4); z-index: 200;
+    align-items: center; justify-content: center;
+  }
+  #date-modal.show { display: flex; }
+  #date-box {
+    background: white; border-radius: 12px; padding: 24px;
+    width: 280px; box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  #date-box h2 { font-size: 15px; color: #1a1a2e; }
+  #date-box label { font-size: 13px; color: #555; display: flex; flex-direction: column; gap: 4px; }
+  #date-box input[type=date] {
+    border: 1px solid #d0d7e3; border-radius: 7px;
+    padding: 7px 10px; font-size: 13px; outline: none; font-family: inherit;
+  }
+  #date-box input[type=date]:focus { border-color: #4f8ef7; }
+  .date-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+  .date-btns button { padding: 7px 16px; border-radius: 7px; border: none; cursor: pointer; font-size: 13px; }
+
+  /* Filter badge */
+  #filter-badge {
+    display: none;
+    background: #f97316;
+    color: white;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  #filter-badge.show { display: inline-block; }
+  #auth-overlay {
+    position: fixed;
+    inset: 0;
+    background: #1a1a2e;
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #auth-box {
+    background: white;
+    border-radius: 14px;
+    padding: 32px 28px;
+    width: 300px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  #auth-box h2 { font-size: 17px; color: #1a1a2e; text-align: center; }
+  #auth-input {
+    border: 1px solid #d0d7e3;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 15px;
+    outline: none;
+    font-family: inherit;
+    width: 100%;
+  }
+  #auth-input:focus { border-color: #4f8ef7; }
+  #auth-error { color: #e74c3c; font-size: 13px; text-align: center; min-height: 18px; }
+  #auth-btn {
+    background: #4f8ef7;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 15px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  #auth-btn:hover { background: #3a7de0; }
+</style>
+</head>
+<body>
+
+<div id="auth-overlay">
+  <div id="auth-box">
+    <h2>请输入密码</h2>
+    <input id="auth-input" type="password" placeholder="密码" />
+    <div id="auth-error"></div>
+    <button id="auth-btn">进入</button>
+  </div>
+</div>
+
+<header>
+  <h1>项目进度表</h1>
+  <button class="header-btn" id="export-btn">导出</button>
+  <button class="header-btn" id="add-project-btn">+ 项目</button>
+  <div class="header-row2">
+    <input id="search-input" type="text" placeholder="搜索记录..." />
+    <select id="time-filter">
+      <option value="all">全部</option>
+      <option value="today">今日</option>
+      <option value="week">本周</option>
+      <option value="month">本月</option>
+      <option value="custom">自定义</option>
+    </select>
+    <span id="filter-badge">已筛选 ×</span>
+  </div>
+</header>
+
+<div id="board"></div>
+
+<footer>
+  <select id="project-select"></select>
+  <input id="entry-input" type="text" placeholder="输入进度内容..." />
+  <button id="submit-btn">归档</button>
+</footer>
+
+<div id="date-modal">
+  <div id="date-box">
+    <h2>自定义时间范围</h2>
+    <label>开始日期 <input type="date" id="date-start" /></label>
+    <label>结束日期 <input type="date" id="date-end" /></label>
+    <div class="date-btns">
+      <button class="btn-cancel" id="date-cancel">取消</button>
+      <button class="btn-confirm" id="date-confirm">确认</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <h2>新增项目</h2>
+    <input id="modal-input" type="text" placeholder="项目名称" maxlength="20" />
+    <div class="modal-btns">
+      <button class="btn-cancel" id="modal-cancel">取消</button>
+      <button class="btn-confirm" id="modal-confirm">确认</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://rokrwejqxrpswpkzhawx.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_OpTUNdpvmVR93h-i6XB3pQ_TrWR8ikx';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const PASSWORD_HASH = '2b7d5805cbee2a961ed2633e809f05c23e2146bd4cd222959f3abfa04f2e806d';
+
+// Auth
+(function() {
+  const overlay = document.getElementById('auth-overlay');
+  const input = document.getElementById('auth-input');
+  const btn = document.getElementById('auth-btn');
+  const error = document.getElementById('auth-error');
+
+  async function tryLogin() {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(input.value);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    if (hashHex === PASSWORD_HASH) {
+      overlay.style.display = 'none';
+      loadFromDB();
+    } else {
+      error.textContent = '密码错误';
+      input.value = '';
+      input.focus();
+    }
+  }
+
+  btn.addEventListener('click', tryLogin);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+  setTimeout(() => input.focus(), 100);
+})();
+
+const DEFAULTS = ['家教', '督学群', '单片机', '自媒体', '雪花酥'];
+let state = { projects: [], entries: {} };
+const openCols = new Set();
+
+// Filter state
+let filterKeyword = '';
+let filterRange = { type: 'all', start: null, end: null };
+
+function getFilteredEntries(entries) {
+  return entries.filter(e => {
+    // keyword
+    if (filterKeyword && !e.text.toLowerCase().includes(filterKeyword.toLowerCase())) return false;
+    // time
+    if (filterRange.type === 'today') {
+      const d = new Date(e.ts), now = new Date();
+      if (d.toDateString() !== now.toDateString()) return false;
+    } else if (filterRange.type === 'week') {
+      const now = new Date(), day = now.getDay() || 7;
+      const weekStart = new Date(now); weekStart.setHours(0,0,0,0); weekStart.setDate(now.getDate() - day + 1);
+      if (e.ts < weekStart.getTime()) return false;
+    } else if (filterRange.type === 'month') {
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      if (e.ts < monthStart.getTime()) return false;
+    } else if (filterRange.type === 'custom' && filterRange.start && filterRange.end) {
+      if (e.ts < filterRange.start || e.ts > filterRange.end) return false;
+    }
+    return true;
+  });
+}
+
+function formatTime(ts) {
+  const d = new Date(ts);
+  return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+
+async function loadFromDB() {
+  const { data, error } = await sb.from('entries').select('*').order('ts', { ascending: true });
+  if (error) { console.error(error); return; }
+
+  const projects = new Set(DEFAULTS);
+  const entries = {};
+  DEFAULTS.forEach(p => entries[p] = []);
+
+  data.forEach(row => {
+    if (!projects.has(row.project)) {
+      projects.add(row.project);
+      entries[row.project] = [];
+    }
+    entries[row.project].push({ id: row.id, text: row.text, status: row.status, ts: row.ts });
+  });
+
+  state.projects = Array.from(projects);
+  state.entries = entries;
+  render();
+}
+
+function render() {
+  const board = document.getElementById('board');
+  const select = document.getElementById('project-select');
+  const prevSelected = select.value;
+
+  board.innerHTML = '';
+  select.innerHTML = '';
+
+  const isMobile = window.innerWidth <= 600;
+  const isFiltering = filterKeyword || filterRange.type !== 'all';
+
+  // update badge
+  const badge = document.getElementById('filter-badge');
+  badge.classList.toggle('show', isFiltering);
+
+  state.projects.forEach(proj => {
+    const allEntries = state.entries[proj] || [];
+    const entries = getFilteredEntries(allEntries);
+    const latest = allEntries[allEntries.length - 1];
+
+    // hide column if filtering and no results
+    if (isFiltering && entries.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = proj; opt.textContent = proj;
+      select.appendChild(opt);
+      return;
+    }
+
+    const col = document.createElement('div');
+    col.className = 'column' + (openCols.has(proj) ? ' open' : '');
+
+    const entriesHtml = entries.length === 0
+      ? '<div class="empty-hint">暂无记录</div>'
+      : entries.map((e, i) => `
+          <div class="entry ${e.status}" data-id="${e.id}" data-proj="${proj}" data-idx="${allEntries.indexOf(e)}">
+            <button class="status-btn" data-id="${e.id}" data-proj="${proj}" data-idx="${allEntries.indexOf(e)}">${e.status === 'todo' ? '待办' : '完成'}</button>
+            <div class="entry-body">
+              <div class="entry-text">${e.text}</div>
+              <div class="entry-time">${formatTime(e.ts)}</div>
+            </div>
+            <div class="entry-actions">
+              <button class="edit-btn" data-id="${e.id}" data-proj="${proj}" data-idx="${allEntries.indexOf(e)}">✎</button>
+              <button class="delete-entry" data-id="${e.id}" data-proj="${proj}">🗑</button>
+            </div>
+          </div>`).join('');
+
+    const previewHtml = latest
+      ? `<span class="preview-label ${latest.status}">${latest.status === 'todo' ? '当前进度' : '已完成'}</span><span class="preview-text">${latest.text}</span>`
+      : '暂无记录';
+
+    col.innerHTML = `
+      <div class="col-header">
+        <div class="col-header-left">
+          <span class="col-chevron">▼</span>
+          <span class="col-title">${proj}</span>
+          <span class="col-count">${entries.length}${isFiltering ? '/'+allEntries.length : ''}</span>
+        </div>
+        <button class="delete-col" data-proj="${proj}">×</button>
+      </div>
+      <div class="col-preview">${previewHtml}</div>
+      <div class="col-entries" id="col-${proj}">${entriesHtml}</div>
+    `;
+    board.appendChild(col);
+
+    if (!isMobile || openCols.has(proj)) {
+      const colEntries = col.querySelector('.col-entries');
+      colEntries.scrollTop = colEntries.scrollHeight;
+    }
+
+    const opt = document.createElement('option');
+    opt.value = proj; opt.textContent = proj;
+    select.appendChild(opt);
+  });
+    const opt = document.createElement('option');
+    opt.value = proj;
+    opt.textContent = proj;
+    select.appendChild(opt);
+  });
+
+  if (prevSelected && state.projects.includes(prevSelected)) {
+    select.value = prevSelected;
+  }
+
+  // Mobile: toggle open/close on header click
+  document.querySelectorAll('.col-header').forEach(header => {
+    header.addEventListener('click', (e) => {
+      if (e.target.classList.contains('delete-col')) return;
+      if (!window.matchMedia('(max-width: 600px)').matches) return;
+      const col = header.closest('.column');
+      const proj = col.querySelector('.col-title').textContent;
+      if (openCols.has(proj)) openCols.delete(proj);
+      else openCols.add(proj);
+      render();
+    });
+  });
+
+  // Mobile: tap entry to show actions
+  document.querySelectorAll('.entry').forEach(entry => {
+    entry.addEventListener('click', (e) => {
+      if (!window.matchMedia('(max-width: 600px)').matches) return;
+      if (e.target.closest('.entry-actions') || e.target.classList.contains('status-btn')) return;
+      document.querySelectorAll('.entry.tapped').forEach(el => el.classList.remove('tapped'));
+      entry.classList.toggle('tapped');
+    });
+  });
+
+  // Delete column
+  document.querySelectorAll('.delete-col').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const proj = btn.dataset.proj;
+      if (!confirm(`确认删除项目「${proj}」及其所有记录？`)) return;
+      await sb.from('entries').delete().eq('project', proj);
+      state.projects = state.projects.filter(p => p !== proj);
+      delete state.entries[proj];
+      openCols.delete(proj);
+      render();
+    });
+  });
+
+  // Toggle status
+  document.querySelectorAll('.status-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const { id, proj, idx } = btn.dataset;
+      const entry = state.entries[proj][Number(idx)];
+      const newStatus = entry.status === 'todo' ? 'done' : 'todo';
+      await sb.from('entries').update({ status: newStatus }).eq('id', id);
+      entry.status = newStatus;
+      render();
+    });
+  });
+
+  // Edit entry
+  document.querySelectorAll('.edit-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const { id, proj, idx } = btn.dataset;
+      const entryEl = btn.closest('.entry');
+      const textEl = entryEl.querySelector('.entry-text');
+      if (textEl.contentEditable === 'true') return;
+
+      textEl.contentEditable = 'true';
+      textEl.focus();
+      const range = document.createRange();
+      range.selectNodeContents(textEl);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      async function saveEdit() {
+        const newText = textEl.innerText.trim();
+        textEl.contentEditable = 'false';
+        if (newText) {
+          await sb.from('entries').update({ text: newText }).eq('id', id);
+          state.entries[proj][Number(idx)].text = newText;
+        }
+        render();
+      }
+
+      textEl.addEventListener('blur', saveEdit, { once: true });
+      textEl.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); textEl.blur(); }
+        if (e.key === 'Escape') { textEl.contentEditable = 'false'; render(); }
+      }, { once: true });
+    });
+  });
+
+  // Delete entry
+  document.querySelectorAll('.delete-entry').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const { id, proj } = btn.dataset;
+      if (!confirm('确认删除这条记录？')) return;
+      await sb.from('entries').delete().eq('id', id);
+      state.entries[proj] = state.entries[proj].filter(e => e.id != id);
+      render();
+    });
+  });
+}
+
+async function addEntry() {
+  const proj = document.getElementById('project-select').value;
+  const text = document.getElementById('entry-input').value.trim();
+  if (!proj || !text) return;
+
+  const ts = Date.now();
+  const { data, error } = await sb.from('entries').insert({ project: proj, text, status: 'todo', ts }).select().single();
+  if (error) { console.error(error); return; }
+
+  if (!state.entries[proj]) state.entries[proj] = [];
+  state.entries[proj].push({ id: data.id, text, status: 'todo', ts });
+
+  document.getElementById('entry-input').value = '';
+
+  // auto-open that column on mobile
+  openCols.add(proj);
+  render();
+
+  const col = document.getElementById(`col-${proj}`);
+  if (col) col.scrollTop = col.scrollHeight;
+}
+
+document.getElementById('export-btn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `进度表备份_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('submit-btn').addEventListener('click', addEntry);
+document.getElementById('entry-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addEntry();
+});
+
+document.getElementById('add-project-btn').addEventListener('click', () => {
+  document.getElementById('modal-overlay').classList.add('show');
+  document.getElementById('modal-input').value = '';
+  setTimeout(() => document.getElementById('modal-input').focus(), 50);
+});
+document.getElementById('modal-cancel').addEventListener('click', () => {
+  document.getElementById('modal-overlay').classList.remove('show');
+});
+document.getElementById('modal-confirm').addEventListener('click', () => {
+  const name = document.getElementById('modal-input').value.trim();
+  if (!name) return;
+  if (!state.projects.includes(name)) {
+    state.projects.push(name);
+    state.entries[name] = [];
+    render();
+  }
+  document.getElementById('modal-overlay').classList.remove('show');
+});
+document.getElementById('modal-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('modal-confirm').click();
+  if (e.key === 'Escape') document.getElementById('modal-cancel').click();
+});
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-overlay'))
+    document.getElementById('modal-overlay').classList.remove('show');
+});
+
+// Search
+document.getElementById('search-input').addEventListener('input', e => {
+  filterKeyword = e.target.value;
+  render();
+});
+
+// Time filter
+document.getElementById('time-filter').addEventListener('change', e => {
+  const val = e.target.value;
+  if (val === 'custom') {
+    document.getElementById('date-modal').classList.add('show');
+    return;
+  }
+  filterRange = { type: val, start: null, end: null };
+  render();
+});
+
+// Date modal
+document.getElementById('date-confirm').addEventListener('click', () => {
+  const start = document.getElementById('date-start').value;
+  const end = document.getElementById('date-end').value;
+  if (!start || !end) return;
+  filterRange = {
+    type: 'custom',
+    start: new Date(start).getTime(),
+    end: new Date(end).getTime() + 86399999
+  };
+  document.getElementById('date-modal').classList.remove('show');
+  render();
+});
+document.getElementById('date-cancel').addEventListener('click', () => {
+  document.getElementById('time-filter').value = filterRange.type === 'custom' ? 'custom' : 'all';
+  document.getElementById('date-modal').classList.remove('show');
+});
+
+// Clear filter badge
+document.getElementById('filter-badge').addEventListener('click', () => {
+  filterKeyword = '';
+  filterRange = { type: 'all', start: null, end: null };
+  document.getElementById('search-input').value = '';
+  document.getElementById('time-filter').value = 'all';
+  render();
+});
+</script>
+</body>
+</html>

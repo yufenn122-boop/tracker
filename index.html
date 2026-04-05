@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>项目进度表</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Microsoft YaHei', sans-serif; background: #f0f2f5; min-height: 100vh; display: flex; flex-direction: column; }
+
+  header {
+    background: #1a1a2e;
+    color: white;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  header h1 { font-size: 18px; font-weight: 600; flex: 1; }
+  .header-btn {
+    background: #4f8ef7;
+    color: white;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .header-btn:hover { background: #3a7de0; }
+  #export-btn { background: #27ae60; }
+  #export-btn:hover { background: #1e8449; }
+
+  #board {
+    flex: 1;
+    display: flex;
+    gap: 16px;
+    padding: 20px 24px;
+    overflow-x: auto;
+    align-items: flex-start;
+  }
+
+  .column {
+    background: white;
+    border-radius: 10px;
+    min-width: 210px;
+    width: 210px;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 180px);
+  }
+
+  .col-header {
+    padding: 12px 14px;
+    font-weight: 600;
+    font-size: 14px;
+    border-bottom: 2px solid #4f8ef7;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #f7f9ff;
+    border-radius: 10px 10px 0 0;
+  }
+  .col-header span { color: #1a1a2e; }
+  .col-count {
+    background: #4f8ef7;
+    color: white;
+    border-radius: 10px;
+    font-size: 11px;
+    padding: 1px 7px;
+    font-weight: 500;
+  }
+  .delete-col {
+    background: none;
+    border: none;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 2px;
+    line-height: 1;
+  }
+  .delete-col:hover { color: #e74c3c; }
+
+  .col-entries {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 10px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* Entry base */
+  .entry {
+    border-radius: 6px;
+    padding: 8px 10px 8px 36px;
+    font-size: 13px;
+    color: #333;
+    position: relative;
+    border: 2px solid #e0e0e0;
+    background: #fafafa;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .entry.todo {
+    border-color: #e74c3c;
+    background: #fff5f5;
+  }
+  .entry.done {
+    border-color: #27ae60;
+    background: #f0fff4;
+  }
+  .entry.done .entry-text {
+    text-decoration: line-through;
+    color: #999;
+  }
+
+  /* Status toggle button */
+  .status-btn {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid #ccc;
+    background: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    padding: 0;
+  }
+  .entry.todo .status-btn { border-color: #e74c3c; background: #e74c3c; color: white; }
+  .entry.done .status-btn { border-color: #27ae60; background: #27ae60; color: white; }
+
+  .entry-text {
+    word-break: break-all;
+    outline: none;
+    min-height: 1em;
+  }
+  .entry-text[contenteditable="true"] {
+    background: #fffbe6;
+    border-radius: 3px;
+    padding: 1px 3px;
+    box-shadow: 0 0 0 1px #f0c040;
+  }
+
+  .entry .entry-time {
+    font-size: 10px;
+    color: #aaa;
+    margin-top: 4px;
+  }
+  .entry-actions {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    display: none;
+    gap: 4px;
+  }
+  .entry:hover .entry-actions { display: flex; }
+  .entry-actions button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 11px;
+    color: #bbb;
+    padding: 1px 3px;
+    border-radius: 3px;
+  }
+  .entry-actions .edit-btn:hover { color: #4f8ef7; background: #eef3ff; }
+  .entry-actions .delete-entry:hover { color: #e74c3c; background: #fff0f0; }
+
+  .empty-hint {
+    color: #ccc;
+    font-size: 12px;
+    text-align: center;
+    padding: 20px 0;
+  }
+
+  footer {
+    background: white;
+    border-top: 1px solid #e8e8e8;
+    padding: 16px 24px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  #project-select {
+    border: 1px solid #d0d7e3;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 14px;
+    background: white;
+    color: #333;
+    min-width: 130px;
+    outline: none;
+  }
+  #project-select:focus { border-color: #4f8ef7; }
+
+  #entry-input {
+    flex: 1;
+    border: 1px solid #d0d7e3;
+    border-radius: 8px;
+    padding: 9px 14px;
+    font-size: 14px;
+    outline: none;
+    font-family: inherit;
+  }
+  #entry-input:focus { border-color: #4f8ef7; }
+
+  #status-select {
+    border: 1px solid #d0d7e3;
+    border-radius: 8px;
+    padding: 9px 10px;
+    font-size: 13px;
+    background: white;
+    color: #333;
+    outline: none;
+    cursor: pointer;
+  }
+
+  #submit-btn {
+    background: #4f8ef7;
+    color: white;
+    border: none;
+    padding: 9px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  #submit-btn:hover { background: #3a7de0; }
+
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    width: 320px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  }
+  .modal h2 { font-size: 16px; margin-bottom: 16px; color: #1a1a2e; }
+  .modal input {
+    width: 100%;
+    border: 1px solid #d0d7e3;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 14px;
+    outline: none;
+    margin-bottom: 14px;
+  }
+  .modal input:focus { border-color: #4f8ef7; }
+  .modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+  .modal-btns button {
+    padding: 7px 18px;
+    border-radius: 7px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .btn-cancel { background: #f0f2f5; color: #666; }
+  .btn-confirm { background: #4f8ef7; color: white; }
+  .btn-confirm:hover { background: #3a7de0; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>项目进度表</h1>
+  <button class="header-btn" id="export-btn">导出 JSON</button>
+  <button class="header-btn" id="add-project-btn">+ 新增项目</button>
+</header>
+
+<div id="board"></div>
+
+<footer>
+  <select id="project-select"></select>
+  <input id="entry-input" type="text" placeholder="输入进度内容..." />
+  <button id="submit-btn">归档</button>
+</footer>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <h2>新增项目</h2>
+    <input id="modal-input" type="text" placeholder="项目名称" maxlength="20" />
+    <div class="modal-btns">
+      <button class="btn-cancel" id="modal-cancel">取消</button>
+      <button class="btn-confirm" id="modal-confirm">确认</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://rokrwejqxrpswpkzhawx.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_OpTUNdpvmVR93h-i6XB3pQ_TrWR8ikx';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const DEFAULTS = ['家教', '督学群', '单片机', '自媒体', '雪花酥'];
+
+// In-memory state
+let state = { projects: [], entries: {} };
+
+function formatTime(ts) {
+  const d = new Date(ts);
+  return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+function statusIcon(status) {
+  if (status === 'todo') return '!';
+  if (status === 'done') return '✓';
+  return '';
+}
+
+// Load all entries from Supabase
+async function loadFromDB() {
+  const { data, error } = await sb.from('entries').select('*').order('ts', { ascending: true });
+  if (error) { console.error(error); return; }
+
+  // Rebuild state
+  const projects = new Set(DEFAULTS);
+  const entries = {};
+  DEFAULTS.forEach(p => entries[p] = []);
+
+  data.forEach(row => {
+    if (!projects.has(row.project)) {
+      projects.add(row.project);
+      entries[row.project] = [];
+    }
+    entries[row.project].push({ id: row.id, text: row.text, status: row.status, ts: row.ts });
+  });
+
+  state.projects = Array.from(projects);
+  state.entries = entries;
+  render();
+}
+
+function render() {
+  const board = document.getElementById('board');
+  const select = document.getElementById('project-select');
+  const prevSelected = select.value;
+
+  board.innerHTML = '';
+  select.innerHTML = '';
+
+  state.projects.forEach(proj => {
+    const entries = state.entries[proj] || [];
+
+    const col = document.createElement('div');
+    col.className = 'column';
+
+    const entriesHtml = entries.length === 0
+      ? '<div class="empty-hint">暂无记录</div>'
+      : entries.map((e, i) => `
+          <div class="entry ${e.status}" data-id="${e.id}" data-proj="${proj}" data-idx="${i}">
+            <button class="status-btn" data-id="${e.id}" data-proj="${proj}" data-idx="${i}" title="切换状态">${statusIcon(e.status)}</button>
+            <div class="entry-text">${e.text}</div>
+            <div class="entry-time">${formatTime(e.ts)}</div>
+            <div class="entry-actions">
+              <button class="edit-btn" data-id="${e.id}" data-proj="${proj}" data-idx="${i}" title="编辑">✎</button>
+              <button class="delete-entry" data-id="${e.id}" data-proj="${proj}" title="删除">×</button>
+            </div>
+          </div>`).join('');
+
+    col.innerHTML = `
+      <div class="col-header">
+        <span>${proj}</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="col-count">${entries.length}</span>
+          <button class="delete-col" data-proj="${proj}" title="删除项目">×</button>
+        </div>
+      </div>
+      <div class="col-entries" id="col-${proj}">${entriesHtml}</div>
+    `;
+    board.appendChild(col);
+
+    const colEntries = col.querySelector('.col-entries');
+    colEntries.scrollTop = colEntries.scrollHeight;
+
+    const opt = document.createElement('option');
+    opt.value = proj;
+    opt.textContent = proj;
+    select.appendChild(opt);
+  });
+
+  if (prevSelected && state.projects.includes(prevSelected)) {
+    select.value = prevSelected;
+  }
+
+  // Delete column
+  document.querySelectorAll('.delete-col').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const proj = btn.dataset.proj;
+      if (!confirm(`确认删除项目「${proj}」及其所有记录？`)) return;
+      await sb.from('entries').delete().eq('project', proj);
+      state.projects = state.projects.filter(p => p !== proj);
+      delete state.entries[proj];
+      render();
+    });
+  });
+
+  // Toggle status
+  document.querySelectorAll('.status-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const { id, proj, idx } = btn.dataset;
+      const entry = state.entries[proj][Number(idx)];
+      const newStatus = entry.status === 'todo' ? 'done' : 'todo';
+      await sb.from('entries').update({ status: newStatus }).eq('id', id);
+      entry.status = newStatus;
+      render();
+    });
+  });
+
+  // Edit entry (inline)
+  document.querySelectorAll('.edit-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const { id, proj, idx } = btn.dataset;
+      const entryEl = btn.closest('.entry');
+      const textEl = entryEl.querySelector('.entry-text');
+      if (textEl.contentEditable === 'true') return;
+
+      textEl.contentEditable = 'true';
+      textEl.focus();
+      const range = document.createRange();
+      range.selectNodeContents(textEl);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      async function saveEdit() {
+        const newText = textEl.innerText.trim();
+        textEl.contentEditable = 'false';
+        if (newText) {
+          await sb.from('entries').update({ text: newText }).eq('id', id);
+          state.entries[proj][Number(idx)].text = newText;
+        }
+        render();
+      }
+
+      textEl.addEventListener('blur', saveEdit, { once: true });
+      textEl.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); textEl.blur(); }
+        if (e.key === 'Escape') { textEl.contentEditable = 'false'; render(); }
+      }, { once: true });
+    });
+  });
+
+  // Delete entry
+  document.querySelectorAll('.delete-entry').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const { id, proj } = btn.dataset;
+      await sb.from('entries').delete().eq('id', id);
+      state.entries[proj] = state.entries[proj].filter(e => e.id != id);
+      render();
+    });
+  });
+}
+
+async function addEntry() {
+  const proj = document.getElementById('project-select').value;
+  const text = document.getElementById('entry-input').value.trim();
+  if (!proj || !text) return;
+
+  const ts = Date.now();
+  const { data, error } = await sb.from('entries').insert({ project: proj, text, status: 'todo', ts }).select().single();
+  if (error) { console.error(error); return; }
+
+  if (!state.entries[proj]) state.entries[proj] = [];
+  state.entries[proj].push({ id: data.id, text, status: 'todo', ts });
+
+  document.getElementById('entry-input').value = '';
+  render();
+
+  const col = document.getElementById(`col-${proj}`);
+  if (col) col.scrollTop = col.scrollHeight;
+}
+
+// Export JSON
+document.getElementById('export-btn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `进度表备份_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// Submit
+document.getElementById('submit-btn').addEventListener('click', addEntry);
+document.getElementById('entry-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addEntry();
+});
+
+// Add project modal
+document.getElementById('add-project-btn').addEventListener('click', () => {
+  document.getElementById('modal-overlay').classList.add('show');
+  document.getElementById('modal-input').value = '';
+  setTimeout(() => document.getElementById('modal-input').focus(), 50);
+});
+document.getElementById('modal-cancel').addEventListener('click', () => {
+  document.getElementById('modal-overlay').classList.remove('show');
+});
+document.getElementById('modal-confirm').addEventListener('click', () => {
+  const name = document.getElementById('modal-input').value.trim();
+  if (!name) return;
+  if (!state.projects.includes(name)) {
+    state.projects.push(name);
+    state.entries[name] = [];
+    render();
+  }
+  document.getElementById('modal-overlay').classList.remove('show');
+});
+document.getElementById('modal-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('modal-confirm').click();
+  if (e.key === 'Escape') document.getElementById('modal-cancel').click();
+});
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-overlay'))
+    document.getElementById('modal-overlay').classList.remove('show');
+});
+
+// Init
+loadFromDB();
+</script>
+</body>
+</html>

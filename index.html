@@ -468,7 +468,6 @@ const PASSWORD_HASH = '2b7d5805cbee2a961ed2633e809f05c23e2146bd4cd222959f3abfa04
 (function() {
   const overlay = document.getElementById('auth-overlay');
   overlay.style.display = 'none';
-  loadFromDB();
 })();
 
 const DEFAULTS = ['家教', '督学群', '单片机', '自媒体', '雪花酥'];
@@ -818,6 +817,7 @@ document.getElementById('filter-badge').addEventListener('click', () => {
   document.getElementById('time-filter').value = 'all';
   render();
 });
+loadFromDB();
 </script>
 </body>
 </html>

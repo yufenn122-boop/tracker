@@ -601,11 +601,6 @@ function render() {
     opt.value = proj; opt.textContent = proj;
     select.appendChild(opt);
   });
-    const opt = document.createElement('option');
-    opt.value = proj;
-    opt.textContent = proj;
-    select.appendChild(opt);
-  });
 
   if (prevSelected && state.projects.includes(prevSelected)) {
     select.value = prevSelected;

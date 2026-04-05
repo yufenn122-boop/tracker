@@ -467,7 +467,31 @@ const PASSWORD_HASH = '2b7d5805cbee2a961ed2633e809f05c23e2146bd4cd222959f3abfa04
 // Auth
 (function() {
   const overlay = document.getElementById('auth-overlay');
-  overlay.style.display = 'none';
+  const input = document.getElementById('auth-input');
+  const btn = document.getElementById('auth-btn');
+  const error = document.getElementById('auth-error');
+
+  overlay.style.display = 'flex';
+
+  async function tryLogin() {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(input.value);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    if (hashHex === PASSWORD_HASH) {
+      overlay.style.display = 'none';
+      loadFromDB();
+    } else {
+      error.textContent = '密码错误';
+      input.value = '';
+      input.focus();
+    }
+  }
+
+  btn.addEventListener('click', tryLogin);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+  setTimeout(() => input.focus(), 100);
 })();
 
 const DEFAULTS = ['家教', '督学群', '单片机', '自媒体', '雪花酥'];
@@ -812,7 +836,7 @@ document.getElementById('filter-badge').addEventListener('click', () => {
   document.getElementById('time-filter').value = 'all';
   render();
 });
-loadFromDB();
+// Init — called after auth
 </script>
 </body>
 </html>

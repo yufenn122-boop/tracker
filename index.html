@@ -146,7 +146,7 @@
   .entry:hover .entry-actions { display: flex; }
   .entry-actions button {
     background: none; border: none; cursor: pointer;
-    font-size: 11px; color: #bbb; padding: 1px 3px; border-radius: 3px;
+    font-size: 15px; color: #bbb; padding: 2px 5px; border-radius: 3px;
   }
   .entry-actions .edit-btn:hover { color: #4f8ef7; background: #eef3ff; }
   .entry-actions .delete-entry:hover { color: #e74c3c; background: #fff0f0; }
@@ -378,7 +378,7 @@ function render() {
             </div>
             <div class="entry-actions">
               <button class="edit-btn" data-id="${e.id}" data-proj="${proj}" data-idx="${i}">✎</button>
-              <button class="delete-entry" data-id="${e.id}" data-proj="${proj}">×</button>
+              <button class="delete-entry" data-id="${e.id}" data-proj="${proj}">🗑</button>
             </div>
           </div>`).join('');
 
@@ -507,6 +507,7 @@ function render() {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const { id, proj } = btn.dataset;
+      if (!confirm('确认删除这条记录？')) return;
       await sb.from('entries').delete().eq('id', id);
       state.entries[proj] = state.entries[proj].filter(e => e.id != id);
       render();

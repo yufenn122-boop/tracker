@@ -739,7 +739,41 @@
   #today-cheer { font-size: 13px; color: #27ae60; text-align: center; margin-top: 14px; padding-top: 12px; border-top: 1px solid #f0f2f5; flex-shrink: 0; }
   @media (max-width: 600px) {
     #today-box { width: calc(100vw - 32px); }
+  /* AI 周报弹窗 */
+  #ai-modal {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4); z-index: 300;
+    align-items: center; justify-content: center;
   }
+  #ai-modal.show { display: flex; }
+  #ai-box {
+    background: white; border-radius: 12px; padding: 20px;
+    width: 360px; max-height: 80vh;
+    display: flex; flex-direction: column; gap: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  }
+  #ai-box h2 { font-size: 15px; color: #1a1a2e; flex-shrink: 0; }
+  #ai-range-tabs { display: flex; gap: 6px; flex-shrink: 0; }
+  #ai-range-tabs button {
+    border: 1px solid #d0d7e3; background: white;
+    border-radius: 6px; padding: 4px 12px;
+    font-size: 12px; cursor: pointer; color: #555;
+  }
+  #ai-range-tabs button.active { background: #4f8ef7; color: white; border-color: #4f8ef7; }
+  #ai-result {
+    flex: 1; overflow-y: auto; font-size: 13px; color: #333;
+    line-height: 1.7; white-space: pre-wrap;
+    background: #f8f9fb; border-radius: 8px; padding: 12px;
+    min-height: 80px;
+  }
+  #ai-result.loading { color: #aaa; }
+  #ai-footer { display: flex; gap: 8px; flex-shrink: 0; }
+  #ai-generate-btn { flex: 1; background: #4f8ef7; color: white; border: none; border-radius: 8px; padding: 9px; font-size: 13px; cursor: pointer; }
+  #ai-generate-btn:hover { background: #3a7de0; }
+  #ai-generate-btn:disabled { background: #a0b8e8; cursor: not-allowed; }
+  #ai-copy-btn { background: #f0f2f5; color: #555; border: none; border-radius: 8px; padding: 9px 14px; font-size: 13px; cursor: pointer; }
+  #ai-copy-btn:hover { background: #e0e4ea; }
+  @media (max-width: 600px) { #ai-box { width: calc(100vw - 32px); } }
 </style>
 </head>
 <body>
@@ -759,6 +793,7 @@
   <div style="flex:1"></div>
   <button class="header-btn" id="overdue-btn" style="background:#e74c3c;display:none">⏰ 超时</button>
   <button id="search-toggle" title="搜索">🔍</button>
+  <button class="header-btn" id="ai-btn">AI 周报</button>
   <button class="header-btn" id="export-btn">导出</button>
   <div class="header-row2">
     <input id="search-input" type="text" placeholder="搜索记录..." />
@@ -833,6 +868,21 @@
     <h2>今日完成 <span id="today-count-badge" style="display:none;background:#27ae60;color:white;border-radius:50%;font-size:12px;font-weight:700;width:20px;height:20px;display:none;align-items:center;justify-content:center;vertical-align:middle;margin-left:4px;"></span></h2>
     <div id="today-content"></div>
     <div id="today-cheer" style="display:none">辛苦啦！今天也超认真生活！🎉</div>
+  </div>
+</div>
+
+<div id="ai-modal">
+  <div id="ai-box">
+    <h2>AI 周报</h2>
+    <div id="ai-range-tabs">
+      <button class="active" data-range="week">本周</button>
+      <button data-range="month">本月</button>
+    </div>
+    <div id="ai-result" class="loading">点击"生成"让 AI 帮你整理任务完成情况</div>
+    <div id="ai-footer">
+      <button id="ai-generate-btn">✨ 生成</button>
+      <button id="ai-copy-btn">复制</button>
+    </div>
   </div>
 </div>
 
@@ -2142,6 +2192,143 @@ document.getElementById('today-btn').addEventListener('click', () => {
 document.getElementById('today-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('today-modal'))
     document.getElementById('today-modal').classList.remove('show');
+});
+
+// ── AI 周报 ──
+const OPENAI_BASE_URL = 'https://code.ppchat.vip/v1';
+const OPENAI_API_KEY = 'sk-3n7CvylU5VAjPZNmycGs1SeNOoJOmbBB4Z1nq11sBzli7Mfq';
+let aiRange = 'week';
+
+function getAiRangeData() {
+  const now = new Date();
+  let startTs, label;
+  if (aiRange === 'week') {
+    const dow = (now.getDay() + 6) % 7;
+    const start = new Date(now); start.setHours(0,0,0,0); start.setDate(now.getDate() - dow);
+    startTs = start.getTime();
+    const end = new Date(start); end.setDate(start.getDate() + 6);
+    label = `${start.getMonth()+1}/${start.getDate()} ~ ${end.getMonth()+1}/${end.getDate()}`;
+  } else {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    startTs = start.getTime();
+    label = `${now.getFullYear()}年${now.getMonth()+1}月`;
+  }
+
+  const byProj = {};
+  state.projects.forEach(proj => {
+    const done = (state.entries[proj] || []).filter(e => e.status === 'done' && e.ts >= startTs);
+    if (done.length) byProj[proj] = done;
+  });
+  return { byProj, label };
+}
+
+function buildPrompt(byProj, label) {
+  const lines = [`以下是我${label}的任务完成记录：\n`];
+  let total = 0;
+  Object.entries(byProj).forEach(([proj, items]) => {
+    lines.push(`【${proj}】${items.length}条`);
+    items.forEach(e => lines.push(`  - ${e.text}`));
+    total += items.length;
+  });
+  if (total === 0) return null;
+  lines.push(`\n共完成 ${total} 条任务。`);
+  lines.push('\n请帮我用简洁的中文整理这段时间的任务完成情况，分析各项目进展，并给出一句鼓励。');
+  return lines.join('\n');
+}
+
+async function generateAiReport() {
+  const btn = document.getElementById('ai-generate-btn');
+  const result = document.getElementById('ai-result');
+  const { byProj, label } = getAiRangeData();
+  const prompt = buildPrompt(byProj, label);
+
+  if (!prompt) {
+    result.className = 'loading';
+    result.textContent = `${label}暂无已完成的任务`;
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '生成中…';
+  result.className = 'loading';
+  result.textContent = '正在请求 AI…';
+
+  try {
+    const resp = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: prompt }],
+        stream: true
+      })
+    });
+
+    if (!resp.ok) {
+      const err = await resp.text();
+      throw new Error(err);
+    }
+
+    result.className = '';
+    result.textContent = '';
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') break;
+        try {
+          const chunk = JSON.parse(data);
+          const text = chunk.choices?.[0]?.delta?.content || '';
+          result.textContent += text;
+          result.scrollTop = result.scrollHeight;
+        } catch {}
+      }
+    }
+  } catch (e) {
+    result.className = 'loading';
+    result.textContent = '请求失败：' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✨ 生成';
+  }
+}
+
+document.getElementById('ai-btn').addEventListener('click', () => {
+  document.getElementById('ai-result').className = 'loading';
+  document.getElementById('ai-result').textContent = '点击"生成"让 AI 帮你整理任务完成情况';
+  document.getElementById('ai-modal').classList.add('show');
+});
+document.getElementById('ai-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('ai-modal'))
+    document.getElementById('ai-modal').classList.remove('show');
+});
+document.getElementById('ai-generate-btn').addEventListener('click', generateAiReport);
+document.getElementById('ai-copy-btn').addEventListener('click', () => {
+  const text = document.getElementById('ai-result').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('ai-copy-btn');
+    btn.textContent = '已复制';
+    setTimeout(() => btn.textContent = '复制', 1500);
+  });
+});
+document.querySelectorAll('#ai-range-tabs button').forEach(tab => {
+  tab.addEventListener('click', () => {
+    aiRange = tab.dataset.range;
+    document.querySelectorAll('#ai-range-tabs button').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+  });
 });
 </script>
 </body>

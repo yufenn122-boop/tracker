@@ -675,6 +675,37 @@
     .cal-done-count { font-size: 9px; }
     #day-box { width: calc(100vw - 32px); }
   }
+
+  /* 今日完成弹窗 */
+  #today-modal {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4); z-index: 300;
+    align-items: center; justify-content: center;
+  }
+  #today-modal.show { display: flex; }
+  #today-box {
+    background: white; border-radius: 12px; padding: 20px;
+    width: 340px; max-height: 70vh;
+    display: flex; flex-direction: column;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  }
+  #today-box h2 { font-size: 15px; color: #1a1a2e; margin-bottom: 12px; flex-shrink: 0; }
+  #today-content { overflow-y: auto; flex: 1; }
+  #today-content .today-proj-name {
+    font-size: 11px; font-weight: 600; color: #4f8ef7;
+    margin: 10px 0 4px; text-transform: uppercase;
+  }
+  #today-content .today-proj-name:first-child { margin-top: 0; }
+  #today-content .today-entry-item {
+    font-size: 13px; color: #333; padding: 5px 8px;
+    background: #f0fff4; border-radius: 6px; margin-bottom: 3px;
+  }
+  #today-content .today-entry-time { font-size: 10px; color: #aaa; margin-top: 2px; }
+  #today-empty { color: #aaa; font-size: 13px; text-align: center; padding: 20px 0; }
+  #today-cheer { font-size: 13px; color: #27ae60; text-align: center; margin-top: 14px; padding-top: 12px; border-top: 1px solid #f0f2f5; flex-shrink: 0; }
+  @media (max-width: 600px) {
+    #today-box { width: calc(100vw - 32px); }
+  }
 </style>
 </head>
 <body>
@@ -689,7 +720,8 @@
 </div>
 
 <header>
-  <button class="header-btn" id="cal-toggle-btn" style="flex:1;text-align:left;background:none;border:1px solid rgba(255,255,255,0.25);font-size:14px;font-weight:600;padding:6px 10px;">📋 看板</button>
+  <button class="header-btn" id="cal-toggle-btn">📋 看板</button>
+  <button class="header-btn" id="today-btn" title="今日完成">今</button>
   <button id="search-toggle" title="搜索">🔍</button>
   <button class="header-btn" id="overdue-btn" style="background:#e74c3c;display:none">⏰ 超时</button>
   <button class="header-btn" id="export-btn">导出</button>
@@ -752,6 +784,14 @@
   <div id="day-box">
     <h2 id="day-modal-title"></h2>
     <div id="day-modal-content"></div>
+  </div>
+</div>
+
+<div id="today-modal">
+  <div id="today-box">
+    <h2>今日完成</h2>
+    <div id="today-content"></div>
+    <div id="today-cheer" style="display:none">辛苦啦！今天也超认真生活！🎉</div>
   </div>
 </div>
 
@@ -1930,6 +1970,46 @@ document.getElementById('day-modal').addEventListener('click', e => {
 document.getElementById('overdue-btn').addEventListener('click', () => {
   renderOverdueModal();
   document.getElementById('overdue-modal').classList.add('show');
+});
+
+// 今日完成弹窗
+function renderTodayModal() {
+  const todayStr = new Date().toDateString();
+  const content = document.getElementById('today-content');
+  const cheer = document.getElementById('today-cheer');
+  content.innerHTML = '';
+
+  const byProj = {};
+  state.projects.forEach(proj => {
+    const done = (state.entries[proj] || []).filter(
+      e => e.status === 'done' && new Date(e.ts).toDateString() === todayStr
+    );
+    if (done.length) byProj[proj] = done;
+  });
+
+  if (!Object.keys(byProj).length) {
+    content.innerHTML = '<div id="today-empty">今天还没有已完成的任务哦~</div>';
+    cheer.style.display = 'none';
+  } else {
+    content.innerHTML = Object.entries(byProj).map(([proj, items]) => `
+      <div class="today-proj-name">${proj}</div>
+      ${items.map(e => `
+        <div class="today-entry-item">
+          ${e.text}
+          <div class="today-entry-time">${formatTime(e.ts)}</div>
+        </div>`).join('')}
+    `).join('');
+    cheer.style.display = '';
+  }
+}
+
+document.getElementById('today-btn').addEventListener('click', () => {
+  renderTodayModal();
+  document.getElementById('today-modal').classList.add('show');
+});
+document.getElementById('today-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('today-modal'))
+    document.getElementById('today-modal').classList.remove('show');
 });
 </script>
 </body>

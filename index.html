@@ -87,6 +87,23 @@
   .header-btn:hover { background: #3a7de0; }
   #export-btn { background: #27ae60; }
   #export-btn:hover { background: #1e8449; }
+  #today-btn {
+    background: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  #today-btn:hover { background: #c0392b; }
 
   /* 超时提醒条 */
   #overdue-banner {
@@ -721,9 +738,10 @@
 
 <header>
   <button class="header-btn" id="cal-toggle-btn">📋 看板</button>
-  <button class="header-btn" id="today-btn" title="今日完成">今</button>
-  <button id="search-toggle" title="搜索">🔍</button>
+  <button id="today-btn" title="今日完成">今</button>
+  <div style="flex:1"></div>
   <button class="header-btn" id="overdue-btn" style="background:#e74c3c;display:none">⏰ 超时</button>
+  <button id="search-toggle" title="搜索">🔍</button>
   <button class="header-btn" id="export-btn">导出</button>
   <div class="header-row2">
     <input id="search-input" type="text" placeholder="搜索记录..." />

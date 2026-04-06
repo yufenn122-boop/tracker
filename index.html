@@ -611,7 +611,9 @@
   </div>
   <div class="cal-grid" id="cal-grid"></div>
   <div class="freq-section">
-    <div class="freq-title">任务完成频次分布</div>
+    <div class="freq-title">项目完成分布</div>
+    <div id="freq-pie-area"></div>
+    <div class="freq-title" style="margin-top:16px">完成趋势</div>
     <div class="freq-tabs">
       <button class="freq-tab active" data-range="day">日</button>
       <button class="freq-tab" data-range="week">周</button>
@@ -1206,15 +1208,17 @@ function renderCalendar() {
   const grid = document.getElementById('cal-grid');
   grid.innerHTML = '';
 
-  // day headers
-  ['日','一','二','三','四','五','六'].forEach(d => {
+  // day headers: Monday first
+  ['一','二','三','四','五','六','日'].forEach(d => {
     const h = document.createElement('div');
     h.className = 'cal-day-header';
     h.textContent = d;
     grid.appendChild(h);
   });
 
-  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const firstDayRaw = new Date(calYear, calMonth, 1).getDay(); // 0=Sun
+  // Convert to Monday-based offset: Mon=0 ... Sun=6
+  const firstDay = (firstDayRaw + 6) % 7;
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
   const daysInPrev = new Date(calYear, calMonth, 0).getDate();
 
@@ -1289,20 +1293,96 @@ function showDayModal(dateKey, entries) {
   document.getElementById('day-modal').classList.add('show');
 }
 
+// Palette for projects (cycles if more than 8)
+const PROJ_COLORS = ['#4f8ef7','#f7874f','#4fc97a','#f7c94f','#c44ff7','#f74f7a','#4fd4f7','#a0a0a0'];
+
+function getProjColor(idx) { return PROJ_COLORS[idx % PROJ_COLORS.length]; }
+
 function renderFreqChart() {
-  const doneByDate = buildDoneByDate();
+  const projects = state.projects;
+  const svgNS = 'http://www.w3.org/2000/svg';
+
+  // ── Pie chart: overall per-project totals ──
+  const pieArea = document.getElementById('freq-pie-area');
+  const totals = {};
+  projects.forEach(p => {
+    totals[p] = (state.entries[p] || []).filter(e => e.status === 'done').length;
+  });
+  const grandTotal = Object.values(totals).reduce((a, b) => a + b, 0);
+
+  if (grandTotal === 0) {
+    pieArea.innerHTML = '<div style="color:#aaa;font-size:12px;text-align:center;padding:12px 0">暂无完成记录</div>';
+  } else {
+    const R = 60, CX = 70, CY = 70;
+    const legendX = 148;
+    const svgH = Math.max(140, projects.length * 20 + 20);
+    const svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('viewBox', `0 0 300 ${svgH}`);
+    svg.setAttribute('style', 'display:block');
+
+    let startAngle = -Math.PI / 2;
+    projects.forEach((p, i) => {
+      const count = totals[p];
+      if (count === 0) return;
+      const angle = (count / grandTotal) * 2 * Math.PI;
+      const endAngle = startAngle + angle;
+      const x1 = CX + R * Math.cos(startAngle);
+      const y1 = CY + R * Math.sin(startAngle);
+      const x2 = CX + R * Math.cos(endAngle);
+      const y2 = CY + R * Math.sin(endAngle);
+      const largeArc = angle > Math.PI ? 1 : 0;
+      const path = document.createElementNS(svgNS, 'path');
+      path.setAttribute('d', `M${CX},${CY} L${x1},${y1} A${R},${R} 0 ${largeArc},1 ${x2},${y2} Z`);
+      path.setAttribute('fill', getProjColor(i));
+      svg.appendChild(path);
+      startAngle = endAngle;
+    });
+
+    // Legend
+    let li = 0;
+    projects.forEach((p, i) => {
+      const count = totals[p];
+      if (count === 0) return;
+      const ly = 16 + li * 20;
+      const rect = document.createElementNS(svgNS, 'rect');
+      rect.setAttribute('x', legendX); rect.setAttribute('y', ly - 9);
+      rect.setAttribute('width', 12); rect.setAttribute('height', 12);
+      rect.setAttribute('rx', 2); rect.setAttribute('fill', getProjColor(i));
+      svg.appendChild(rect);
+      const txt = document.createElementNS(svgNS, 'text');
+      txt.setAttribute('x', legendX + 16); txt.setAttribute('y', ly);
+      txt.setAttribute('font-size', '11'); txt.setAttribute('fill', '#333');
+      txt.textContent = `${p}  ${count}次 (${Math.round(count/grandTotal*100)}%)`;
+      svg.appendChild(txt);
+      li++;
+    });
+
+    pieArea.innerHTML = '';
+    pieArea.appendChild(svg);
+  }
+
+  // ── Multi-line trend chart ──
   const area = document.getElementById('freq-chart-area');
-  let data = [];
+  // Build per-project per-period counts
+  let labels = [];
+  // projData[proj] = array of counts per label
+  const projData = {};
+  projects.forEach(p => { projData[p] = []; });
+
+  const doneByDate = buildDoneByDate();
 
   if (freqRange === 'day') {
-    // current month days
     const days = new Date(calYear, calMonth + 1, 0).getDate();
     for (let d = 1; d <= days; d++) {
       const key = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-      data.push({ label: String(d), count: (doneByDate[key] || []).length });
+      labels.push(String(d));
+      const entries = doneByDate[key] || [];
+      projects.forEach(p => {
+        projData[p].push(entries.filter(e => e.project === p).length);
+      });
     }
   } else if (freqRange === 'week') {
-    // last 12 weeks
     const now = new Date();
     for (let w = 11; w >= 0; w--) {
       const weekStart = new Date(now);
@@ -1311,80 +1391,104 @@ function renderFreqChart() {
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekStart.getDate() + 6);
       weekEnd.setHours(23,59,59,999);
-      let count = 0;
-      Object.entries(doneByDate).forEach(([key, items]) => {
-        const t = new Date(key).getTime();
-        if (t >= weekStart.getTime() && t <= weekEnd.getTime()) count += items.length;
+      labels.push(`${weekStart.getMonth()+1}/${weekStart.getDate()}`);
+      projects.forEach(p => {
+        let cnt = 0;
+        Object.entries(doneByDate).forEach(([key, items]) => {
+          const t = new Date(key).getTime();
+          if (t >= weekStart.getTime() && t <= weekEnd.getTime())
+            cnt += items.filter(e => e.project === p).length;
+        });
+        projData[p].push(cnt);
       });
-      const label = `${weekStart.getMonth()+1}/${weekStart.getDate()}`;
-      data.push({ label, count });
     }
   } else {
-    // last 12 months
     const now = new Date();
     for (let i = 11; i >= 0; i--) {
       let m = now.getMonth() - i;
       let yr = now.getFullYear();
       while (m < 0) { m += 12; yr--; }
-      const key_prefix = `${yr}-${String(m+1).padStart(2,'0')}-`;
-      let count = 0;
-      Object.entries(doneByDate).forEach(([key, items]) => {
-        if (key.startsWith(key_prefix)) count += items.length;
+      const prefix = `${yr}-${String(m+1).padStart(2,'0')}-`;
+      labels.push(`${m+1}月`);
+      projects.forEach(p => {
+        let cnt = 0;
+        Object.entries(doneByDate).forEach(([key, items]) => {
+          if (key.startsWith(prefix)) cnt += items.filter(e => e.project === p).length;
+        });
+        projData[p].push(cnt);
       });
-      data.push({ label: `${m+1}月`, count });
     }
   }
 
-  drawBarChart(data, area);
+  drawLineChart(labels, projects, projData, area);
 }
 
-function drawBarChart(data, container) {
+function drawLineChart(labels, projects, projData, container) {
+  const svgNS = 'http://www.w3.org/2000/svg';
   const W = container.clientWidth || 320;
   const H = 100;
-  const n = data.length;
-  const max = Math.max(...data.map(d => d.count), 1);
-  const slotW = W / n;
-  const barW = Math.max(4, slotW - 4);
-  const svgNS = 'http://www.w3.org/2000/svg';
+  const n = labels.length;
+  const allCounts = Object.values(projData).flat();
+  const maxVal = Math.max(...allCounts, 1);
+  const padL = 20, padR = 8, padT = 8, padB = 22;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+
   const svg = document.createElementNS(svgNS, 'svg');
   svg.setAttribute('width', '100%');
-  svg.setAttribute('height', H + 28);
-  svg.setAttribute('viewBox', `0 0 ${W} ${H + 28}`);
+  svg.setAttribute('height', H);
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
 
-  data.forEach((d, i) => {
-    const barH = d.count === 0 ? 2 : Math.max(4, Math.round((d.count / max) * H));
-    const x = i * slotW + (slotW - barW) / 2;
-    const rect = document.createElementNS(svgNS, 'rect');
-    rect.setAttribute('x', x);
-    rect.setAttribute('y', H - barH);
-    rect.setAttribute('width', barW);
-    rect.setAttribute('height', barH);
-    rect.setAttribute('fill', d.count === 0 ? '#e8ecf0' : '#4f8ef7');
-    rect.setAttribute('rx', 2);
-    svg.appendChild(rect);
+  // Baseline
+  const base = document.createElementNS(svgNS, 'line');
+  base.setAttribute('x1', padL); base.setAttribute('y1', padT + chartH);
+  base.setAttribute('x2', padL + chartW); base.setAttribute('y2', padT + chartH);
+  base.setAttribute('stroke', '#e0e0e0'); base.setAttribute('stroke-width', '1');
+  svg.appendChild(base);
 
-    if (d.count > 0) {
-      const val = document.createElementNS(svgNS, 'text');
-      val.setAttribute('x', x + barW / 2);
-      val.setAttribute('y', H - barH - 3);
-      val.setAttribute('text-anchor', 'middle');
-      val.setAttribute('font-size', '9');
-      val.setAttribute('fill', '#4f8ef7');
-      val.textContent = d.count;
-      svg.appendChild(val);
-    }
+  // X labels (show every nth to avoid crowding)
+  const step = n <= 12 ? 1 : Math.ceil(n / 12);
+  labels.forEach((lbl, i) => {
+    if (i % step !== 0 && i !== n - 1) return;
+    const x = padL + (i / (n - 1 || 1)) * chartW;
+    const t = document.createElementNS(svgNS, 'text');
+    t.setAttribute('x', x); t.setAttribute('y', H - 4);
+    t.setAttribute('text-anchor', 'middle');
+    t.setAttribute('font-size', '8'); t.setAttribute('fill', '#aaa');
+    t.textContent = lbl;
+    svg.appendChild(t);
+  });
 
-    // label: show every label for ≤12, else every 7th
-    if (n <= 12 || i % 7 === 0 || i === n - 1) {
-      const text = document.createElementNS(svgNS, 'text');
-      text.setAttribute('x', x + barW / 2);
-      text.setAttribute('y', H + 18);
-      text.setAttribute('text-anchor', 'middle');
-      text.setAttribute('font-size', '9');
-      text.setAttribute('fill', '#aaa');
-      text.textContent = d.label;
-      svg.appendChild(text);
-    }
+  // Lines per project
+  projects.forEach((p, pi) => {
+    const counts = projData[p];
+    const hasAny = counts.some(c => c > 0);
+    if (!hasAny) return;
+    const color = getProjColor(pi);
+    let d = '';
+    counts.forEach((c, i) => {
+      const x = padL + (i / (n - 1 || 1)) * chartW;
+      const y = padT + chartH - (c / maxVal) * chartH;
+      d += (i === 0 ? 'M' : 'L') + `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+    const path = document.createElementNS(svgNS, 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', color);
+    path.setAttribute('stroke-width', '1.5');
+    path.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(path);
+
+    // Dots for non-zero points
+    counts.forEach((c, i) => {
+      if (c === 0) return;
+      const x = padL + (i / (n - 1 || 1)) * chartW;
+      const y = padT + chartH - (c / maxVal) * chartH;
+      const circle = document.createElementNS(svgNS, 'circle');
+      circle.setAttribute('cx', x); circle.setAttribute('cy', y);
+      circle.setAttribute('r', '2.5'); circle.setAttribute('fill', color);
+      svg.appendChild(circle);
+    });
   });
 
   container.innerHTML = '';

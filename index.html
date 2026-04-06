@@ -316,18 +316,35 @@
     width: 100%;
   }
 
-  #project-select {
-    border: 1px solid #d0d7e3;
-    border-radius: 8px;
-    padding: 8px 8px;
-    font-size: 13px;
-    background: white;
-    color: #333;
-    width: 90px;
-    outline: none;
-    flex-shrink: 0;
+  /* 自定义项目下拉 */
+  .proj-dropdown { position: relative; flex-shrink: 0; width: 90px; }
+  .proj-selected {
+    border: 1px solid #d0d7e3; border-radius: 8px;
+    padding: 8px 8px; font-size: 13px; background: white;
+    color: #333; cursor: pointer; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; user-select: none;
   }
-  #project-select:focus { border-color: #4f8ef7; }
+  .proj-selected:focus, .proj-dropdown.open .proj-selected { border-color: #4f8ef7; }
+  .proj-menu {
+    position: absolute; bottom: calc(100% + 4px); left: 0;
+    width: 130px; background: white;
+    border: 1px solid #d0d7e3; border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    z-index: 500; overflow: hidden;
+  }
+  .proj-opt-new {
+    padding: 9px 12px; font-size: 13px; font-weight: 600;
+    color: #4f8ef7; background: #f0f6ff;
+    cursor: pointer; border-bottom: 1px solid #e8eef8;
+  }
+  .proj-opt-new:hover { background: #e0ecff; }
+  .proj-opt-list { max-height: 180px; overflow-y: auto; }
+  .proj-opt {
+    padding: 8px 12px; font-size: 13px; color: #333;
+    cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .proj-opt:hover { background: #f0f2f5; }
+  .proj-opt.selected { color: #4f8ef7; font-weight: 600; }
 
   #entry-input {
     flex: 1;
@@ -793,7 +810,13 @@
 </div>
 
 <footer>
-  <select id="project-select"></select>
+  <div id="proj-dropdown" class="proj-dropdown">
+    <div id="proj-selected" class="proj-selected"></div>
+    <div id="proj-menu" class="proj-menu" style="display:none">
+      <div id="proj-new-opt" class="proj-opt proj-opt-new">＋ 新建项目</div>
+      <div id="proj-opt-list" class="proj-opt-list"></div>
+    </div>
+  </div>
   <input id="entry-input" type="text" placeholder="输入进度内容..." />
   <button id="submit-btn">归档</button>
 </footer>
@@ -807,7 +830,7 @@
 
 <div id="today-modal">
   <div id="today-box">
-    <h2>今日完成</h2>
+    <h2>今日完成 <span id="today-count-badge" style="display:none;background:#27ae60;color:white;border-radius:50%;font-size:12px;font-weight:700;width:20px;height:20px;display:none;align-items:center;justify-content:center;vertical-align:middle;margin-left:4px;"></span></h2>
     <div id="today-content"></div>
     <div id="today-cheer" style="display:none">辛苦啦！今天也超认真生活！🎉</div>
   </div>
@@ -959,11 +982,9 @@ async function loadFromDB() {
 
 function render() {
   const board = document.getElementById('board');
-  const select = document.getElementById('project-select');
-  const prevSelected = select.value;
+  const prevSelected = window._selectedProj || state.projects[0] || '';
 
   board.innerHTML = '';
-  select.innerHTML = '';
 
   const isMobile = window.innerWidth <= 600;
   const isFiltering = filterKeyword || filterRange.type !== 'all';
@@ -1137,24 +1158,14 @@ function render() {
       const colEntries = col.querySelector('.col-entries');
       colEntries.scrollTop = colEntries.scrollHeight;
     }
-
-    const opt = document.createElement('option');
-    opt.value = proj; opt.textContent = proj;
-    select.appendChild(opt);
   });
 
-  // 在最顶部插入"+ 新建项目"选项
-  const newOpt = document.createElement('option');
-  newOpt.value = '__new__'; newOpt.textContent = '+ 新建项目';
-  select.insertBefore(newOpt, select.firstChild);
+  // 更新自定义下拉
+  renderProjDropdown(prevSelected);
 
-  if (prevSelected && state.projects.includes(prevSelected)) {
-    select.value = prevSelected;
-  }
-
-  // Project name inline edit
+  // Project name inline edit — 双击触发
   document.querySelectorAll('.col-title').forEach(titleEl => {
-    titleEl.addEventListener('click', (e) => {
+    titleEl.addEventListener('dblclick', (e) => {
       e.stopPropagation();
       if (titleEl.contentEditable === 'true') return;
       const oldName = titleEl.textContent;
@@ -1206,14 +1217,27 @@ function render() {
       const col = header.closest('.column');
       const proj = col.querySelector('.col-title').textContent;
       const topBefore = col.getBoundingClientRect().top;
-      if (openCols.has(proj)) openCols.delete(proj);
+      const wasOpen = openCols.has(proj);
+      if (wasOpen) openCols.delete(proj);
       else openCols.add(proj);
       render();
-      const newCol = document.querySelector(`.col-title`)
-        && [...document.querySelectorAll('.col-title')].find(el => el.textContent === proj)?.closest('.column');
+      const newCol = [...document.querySelectorAll('.col-title')]
+        .find(el => el.textContent === proj)?.closest('.column');
       if (newCol) {
-        const topAfter = newCol.getBoundingClientRect().top;
-        window.scrollBy({ top: topAfter - topBefore, behavior: 'instant' });
+        if (!wasOpen) {
+          // 展开：确保列顶部在视口内，若已在视口内则保持位置
+          const topAfter = newCol.getBoundingClientRect().top;
+          window.scrollBy({ top: topAfter - topBefore, behavior: 'instant' });
+          // 若列底部超出视口，再把列顶部对齐到视口顶部留一点边距
+          const rect = newCol.getBoundingClientRect();
+          if (rect.bottom > window.innerHeight) {
+            const headerH = document.querySelector('header').offsetHeight;
+            window.scrollBy({ top: rect.top - headerH - 8, behavior: 'smooth' });
+          }
+        } else {
+          const topAfter = newCol.getBoundingClientRect().top;
+          window.scrollBy({ top: topAfter - topBefore, behavior: 'instant' });
+        }
       }
     });
   });
@@ -1342,12 +1366,17 @@ function render() {
 }
 
 async function addEntry() {
-  const proj = document.getElementById('project-select').value;
+  const proj = window._selectedProj;
   const text = document.getElementById('entry-input').value.trim();
   if (!proj || !text) return;
 
   const ts = Date.now();
   const tempId = 'temp_' + ts;
+
+  // 记录目标列位置，render 后补偿偏移
+  const existingCol = [...document.querySelectorAll('.col-title')]
+    .find(el => el.textContent === proj)?.closest('.column');
+  const topBefore = existingCol ? existingCol.getBoundingClientRect().top : null;
 
   // Optimistic update
   if (!state.entries[proj]) state.entries[proj] = [];
@@ -1355,6 +1384,15 @@ async function addEntry() {
   document.getElementById('entry-input').value = '';
   openCols.add(proj);
   render();
+
+  // 补偿滚动偏移
+  const newCol = [...document.querySelectorAll('.col-title')]
+    .find(el => el.textContent === proj)?.closest('.column');
+  if (newCol && topBefore !== null) {
+    const topAfter = newCol.getBoundingClientRect().top;
+    window.scrollBy({ top: topAfter - topBefore, behavior: 'instant' });
+  }
+
   const col = document.getElementById(`col-${proj}`);
   if (col) col.scrollTop = col.scrollHeight;
 
@@ -1384,15 +1422,65 @@ document.getElementById('entry-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') addEntry();
 });
 
-// 下拉选择"+ 新建项目"时触发弹窗
-document.getElementById('project-select').addEventListener('change', e => {
-  if (e.target.value === '__new__') {
-    e.target.value = e.target.options[1]?.value || '';
-    document.getElementById('modal-overlay').classList.add('show');
-    document.getElementById('modal-input').value = '';
-    setTimeout(() => document.getElementById('modal-input').focus(), 50);
+// ── 自定义项目下拉 ──
+window._selectedProj = '';
+
+function renderProjDropdown(prevSelected) {
+  const list = document.getElementById('proj-opt-list');
+  const selectedEl = document.getElementById('proj-selected');
+  list.innerHTML = '';
+
+  // 确保选中值有效
+  if (!window._selectedProj || !state.projects.includes(window._selectedProj)) {
+    window._selectedProj = prevSelected && state.projects.includes(prevSelected)
+      ? prevSelected : (state.projects[0] || '');
   }
+
+  selectedEl.textContent = window._selectedProj || '选择项目';
+
+  state.projects.forEach(proj => {
+    const opt = document.createElement('div');
+    opt.className = 'proj-opt' + (proj === window._selectedProj ? ' selected' : '');
+    opt.textContent = proj;
+    opt.addEventListener('click', () => {
+      window._selectedProj = proj;
+      closeProjMenu();
+      renderProjDropdown(proj);
+    });
+    list.appendChild(opt);
+  });
+}
+
+function closeProjMenu() {
+  document.getElementById('proj-menu').style.display = 'none';
+  document.getElementById('proj-dropdown').classList.remove('open');
+}
+
+document.getElementById('proj-selected').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const menu = document.getElementById('proj-menu');
+  const isOpen = menu.style.display !== 'none';
+  if (isOpen) { closeProjMenu(); return; }
+  menu.style.display = 'block';
+  document.getElementById('proj-dropdown').classList.add('open');
+  // 滚动到当前选中项
+  const list = document.getElementById('proj-opt-list');
+  const sel = list.querySelector('.selected');
+  if (sel) sel.scrollIntoView({ block: 'nearest' });
 });
+
+document.getElementById('proj-new-opt').addEventListener('click', () => {
+  closeProjMenu();
+  document.getElementById('modal-overlay').classList.add('show');
+  document.getElementById('modal-input').value = '';
+  setTimeout(() => document.getElementById('modal-input').focus(), 50);
+});
+
+document.addEventListener('click', (e) => {
+  if (!document.getElementById('proj-dropdown').contains(e.target)) closeProjMenu();
+});
+
+// 下拉选择"+ 新建项目"时触发弹窗（旧 select 已移除，由自定义下拉处理）
 document.getElementById('modal-cancel').addEventListener('click', () => {
   document.getElementById('modal-overlay').classList.remove('show');
 });
@@ -2015,6 +2103,7 @@ function renderTodayModal() {
   const todayStr = new Date().toDateString();
   const content = document.getElementById('today-content');
   const cheer = document.getElementById('today-cheer');
+  const badge = document.getElementById('today-count-badge');
   content.innerHTML = '';
 
   const byProj = {};
@@ -2025,9 +2114,12 @@ function renderTodayModal() {
     if (done.length) byProj[proj] = done;
   });
 
+  const totalCount = Object.values(byProj).reduce((a, b) => a + b.length, 0);
+
   if (!Object.keys(byProj).length) {
     content.innerHTML = '<div id="today-empty">今天还没有已完成的任务哦~</div>';
     cheer.style.display = 'none';
+    badge.style.display = 'none';
   } else {
     content.innerHTML = Object.entries(byProj).map(([proj, items]) => `
       <div class="today-proj-name">${proj}</div>
@@ -2038,6 +2130,8 @@ function renderTodayModal() {
         </div>`).join('')}
     `).join('');
     cheer.style.display = '';
+    badge.textContent = totalCount;
+    badge.style.display = 'inline-flex';
   }
 }
 

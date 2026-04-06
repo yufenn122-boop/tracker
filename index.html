@@ -613,13 +613,15 @@
   <div class="freq-section">
     <div class="freq-title">项目完成分布</div>
     <div id="freq-pie-area"></div>
-    <div class="freq-title" style="margin-top:16px">完成趋势</div>
-    <div class="freq-tabs">
-      <button class="freq-tab active" data-range="day">日</button>
-      <button class="freq-tab" data-range="week">周</button>
-      <button class="freq-tab" data-range="month">月</button>
+    <div id="freq-trend-section">
+      <div class="freq-title" style="margin-top:16px">完成趋势</div>
+      <div class="freq-tabs">
+        <button class="freq-tab active" data-range="day">日</button>
+        <button class="freq-tab" data-range="week">周</button>
+        <button class="freq-tab" data-range="month">月</button>
+      </div>
+      <div id="freq-chart-area"></div>
     </div>
-    <div id="freq-chart-area"></div>
   </div>
 </div>
 
@@ -993,12 +995,19 @@ function render() {
       const newStatus = oldStatus === 'todo' ? 'done' : 'todo';
       const newTs = newStatus === 'done' ? Date.now() : entry.origTs;
       const oldTs = entry.ts;
-      // Optimistic update
+      // Optimistic update — preserve scroll position
       entry.status = newStatus;
       entry.ts = newTs;
+      const savedY = window.scrollY;
       render();
+      window.scrollTo({ top: savedY, behavior: 'instant' });
       const { error } = await sb.from('entries').update({ status: newStatus, ts: newTs }).eq('id', id);
-      if (error) { entry.status = oldStatus; entry.ts = oldTs; render(); }
+      if (error) {
+        entry.status = oldStatus; entry.ts = oldTs;
+        const savedY2 = window.scrollY;
+        render();
+        window.scrollTo({ top: savedY2, behavior: 'instant' });
+      }
     });
   });
 
@@ -1298,129 +1307,138 @@ const PROJ_COLORS = ['#4f8ef7','#f7874f','#4fc97a','#f7c94f','#c44ff7','#f74f7a'
 
 function getProjColor(idx) { return PROJ_COLORS[idx % PROJ_COLORS.length]; }
 
+function buildPeriodTotals(projects, doneByDate, rangeFilter) {
+  // rangeFilter: function(dateKey) => bool
+  const totals = {};
+  projects.forEach(p => { totals[p] = 0; });
+  Object.entries(doneByDate).forEach(([key, items]) => {
+    if (!rangeFilter(key)) return;
+    items.forEach(e => { if (totals[e.project] !== undefined) totals[e.project]++; });
+  });
+  return totals;
+}
+
+function drawPieChart(projects, totals, container) {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const grandTotal = Object.values(totals).reduce((a, b) => a + b, 0);
+  if (grandTotal === 0) {
+    container.innerHTML = '<div style="color:#aaa;font-size:12px;text-align:center;padding:12px 0">暂无完成记录</div>';
+    return;
+  }
+  const R = 60, CX = 70, CY = 70;
+  const legendX = 148;
+  const svgH = Math.max(140, projects.filter(p => totals[p] > 0).length * 20 + 20);
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('width', '100%');
+  svg.setAttribute('viewBox', `0 0 300 ${svgH}`);
+  svg.setAttribute('style', 'display:block');
+
+  let startAngle = -Math.PI / 2;
+  projects.forEach((p, i) => {
+    const count = totals[p];
+    if (count === 0) return;
+    const angle = (count / grandTotal) * 2 * Math.PI;
+    const endAngle = startAngle + angle;
+    const x1 = CX + R * Math.cos(startAngle);
+    const y1 = CY + R * Math.sin(startAngle);
+    const x2 = CX + R * Math.cos(endAngle);
+    const y2 = CY + R * Math.sin(endAngle);
+    const largeArc = angle > Math.PI ? 1 : 0;
+    const path = document.createElementNS(svgNS, 'path');
+    path.setAttribute('d', `M${CX},${CY} L${x1},${y1} A${R},${R} 0 ${largeArc},1 ${x2},${y2} Z`);
+    path.setAttribute('fill', getProjColor(i));
+    svg.appendChild(path);
+    startAngle = endAngle;
+  });
+
+  let li = 0;
+  projects.forEach((p, i) => {
+    const count = totals[p];
+    if (count === 0) return;
+    const ly = 16 + li * 20;
+    const rect = document.createElementNS(svgNS, 'rect');
+    rect.setAttribute('x', legendX); rect.setAttribute('y', ly - 9);
+    rect.setAttribute('width', 12); rect.setAttribute('height', 12);
+    rect.setAttribute('rx', 2); rect.setAttribute('fill', getProjColor(i));
+    svg.appendChild(rect);
+    const txt = document.createElementNS(svgNS, 'text');
+    txt.setAttribute('x', legendX + 16); txt.setAttribute('y', ly);
+    txt.setAttribute('font-size', '11'); txt.setAttribute('fill', '#333');
+    txt.textContent = `${p}  ${count}次 (${Math.round(count/grandTotal*100)}%)`;
+    svg.appendChild(txt);
+    li++;
+  });
+
+  container.innerHTML = '';
+  container.appendChild(svg);
+}
+
 function renderFreqChart() {
   const projects = state.projects;
-  const svgNS = 'http://www.w3.org/2000/svg';
-
-  // ── Pie chart: overall per-project totals ──
-  const pieArea = document.getElementById('freq-pie-area');
-  const totals = {};
-  projects.forEach(p => {
-    totals[p] = (state.entries[p] || []).filter(e => e.status === 'done').length;
-  });
-  const grandTotal = Object.values(totals).reduce((a, b) => a + b, 0);
-
-  if (grandTotal === 0) {
-    pieArea.innerHTML = '<div style="color:#aaa;font-size:12px;text-align:center;padding:12px 0">暂无完成记录</div>';
-  } else {
-    const R = 60, CX = 70, CY = 70;
-    const legendX = 148;
-    const svgH = Math.max(140, projects.length * 20 + 20);
-    const svg = document.createElementNS(svgNS, 'svg');
-    svg.setAttribute('width', '100%');
-    svg.setAttribute('viewBox', `0 0 300 ${svgH}`);
-    svg.setAttribute('style', 'display:block');
-
-    let startAngle = -Math.PI / 2;
-    projects.forEach((p, i) => {
-      const count = totals[p];
-      if (count === 0) return;
-      const angle = (count / grandTotal) * 2 * Math.PI;
-      const endAngle = startAngle + angle;
-      const x1 = CX + R * Math.cos(startAngle);
-      const y1 = CY + R * Math.sin(startAngle);
-      const x2 = CX + R * Math.cos(endAngle);
-      const y2 = CY + R * Math.sin(endAngle);
-      const largeArc = angle > Math.PI ? 1 : 0;
-      const path = document.createElementNS(svgNS, 'path');
-      path.setAttribute('d', `M${CX},${CY} L${x1},${y1} A${R},${R} 0 ${largeArc},1 ${x2},${y2} Z`);
-      path.setAttribute('fill', getProjColor(i));
-      svg.appendChild(path);
-      startAngle = endAngle;
-    });
-
-    // Legend
-    let li = 0;
-    projects.forEach((p, i) => {
-      const count = totals[p];
-      if (count === 0) return;
-      const ly = 16 + li * 20;
-      const rect = document.createElementNS(svgNS, 'rect');
-      rect.setAttribute('x', legendX); rect.setAttribute('y', ly - 9);
-      rect.setAttribute('width', 12); rect.setAttribute('height', 12);
-      rect.setAttribute('rx', 2); rect.setAttribute('fill', getProjColor(i));
-      svg.appendChild(rect);
-      const txt = document.createElementNS(svgNS, 'text');
-      txt.setAttribute('x', legendX + 16); txt.setAttribute('y', ly);
-      txt.setAttribute('font-size', '11'); txt.setAttribute('fill', '#333');
-      txt.textContent = `${p}  ${count}次 (${Math.round(count/grandTotal*100)}%)`;
-      svg.appendChild(txt);
-      li++;
-    });
-
-    pieArea.innerHTML = '';
-    pieArea.appendChild(svg);
-  }
-
-  // ── Multi-line trend chart ──
-  const area = document.getElementById('freq-chart-area');
-  // Build per-project per-period counts
-  let labels = [];
-  // projData[proj] = array of counts per label
-  const projData = {};
-  projects.forEach(p => { projData[p] = []; });
-
   const doneByDate = buildDoneByDate();
+  const pieArea = document.getElementById('freq-pie-area');
+  const lineArea = document.getElementById('freq-chart-area');
+  const now = new Date();
+
+  const trendSection = document.getElementById('freq-trend-section');
+  trendSection.style.display = freqRange === 'day' ? 'none' : '';
 
   if (freqRange === 'day') {
-    const days = new Date(calYear, calMonth + 1, 0).getDate();
-    for (let d = 1; d <= days; d++) {
-      const key = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    // Pie: today only
+    const todayKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    const totals = buildPeriodTotals(projects, doneByDate, k => k === todayKey);
+    drawPieChart(projects, totals, pieArea);
+    lineArea.innerHTML = '';
+  } else if (freqRange === 'week') {
+    // Current week: Mon–Sun
+    const dow = (now.getDay() + 6) % 7; // Mon=0
+    const weekStart = new Date(now); weekStart.setDate(now.getDate() - dow); weekStart.setHours(0,0,0,0);
+    const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6); weekEnd.setHours(23,59,59,999);
+
+    // Pie: whole week totals
+    const totals = buildPeriodTotals(projects, doneByDate, k => {
+      const t = new Date(k).getTime();
+      return t >= weekStart.getTime() && t <= weekEnd.getTime();
+    });
+    drawPieChart(projects, totals, pieArea);
+
+    // Line: each day of this week (Mon–Sun)
+    const labels = ['一','二','三','四','五','六','日'];
+    const projData = {};
+    projects.forEach(p => { projData[p] = []; });
+    for (let d = 0; d < 7; d++) {
+      const day = new Date(weekStart); day.setDate(weekStart.getDate() + d);
+      const key = `${day.getFullYear()}-${String(day.getMonth()+1).padStart(2,'0')}-${String(day.getDate()).padStart(2,'0')}`;
+      const entries = doneByDate[key] || [];
+      projects.forEach(p => {
+        projData[p].push(entries.filter(e => e.project === p).length);
+      });
+    }
+    drawLineChart(labels, projects, projData, lineArea);
+  } else {
+    // Current month: each day
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const yr = now.getFullYear(), mo = now.getMonth();
+    const prefix = `${yr}-${String(mo+1).padStart(2,'0')}-`;
+
+    // Pie: whole month totals
+    const totals = buildPeriodTotals(projects, doneByDate, k => k.startsWith(prefix));
+    drawPieChart(projects, totals, pieArea);
+
+    // Line: each day of this month
+    const labels = [];
+    const projData = {};
+    projects.forEach(p => { projData[p] = []; });
+    for (let d = 1; d <= daysInMonth; d++) {
+      const key = `${prefix}${String(d).padStart(2,'0')}`;
       labels.push(String(d));
       const entries = doneByDate[key] || [];
       projects.forEach(p => {
         projData[p].push(entries.filter(e => e.project === p).length);
       });
     }
-  } else if (freqRange === 'week') {
-    const now = new Date();
-    for (let w = 11; w >= 0; w--) {
-      const weekStart = new Date(now);
-      weekStart.setDate(now.getDate() - now.getDay() - w * 7);
-      weekStart.setHours(0,0,0,0);
-      const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekStart.getDate() + 6);
-      weekEnd.setHours(23,59,59,999);
-      labels.push(`${weekStart.getMonth()+1}/${weekStart.getDate()}`);
-      projects.forEach(p => {
-        let cnt = 0;
-        Object.entries(doneByDate).forEach(([key, items]) => {
-          const t = new Date(key).getTime();
-          if (t >= weekStart.getTime() && t <= weekEnd.getTime())
-            cnt += items.filter(e => e.project === p).length;
-        });
-        projData[p].push(cnt);
-      });
-    }
-  } else {
-    const now = new Date();
-    for (let i = 11; i >= 0; i--) {
-      let m = now.getMonth() - i;
-      let yr = now.getFullYear();
-      while (m < 0) { m += 12; yr--; }
-      const prefix = `${yr}-${String(m+1).padStart(2,'0')}-`;
-      labels.push(`${m+1}月`);
-      projects.forEach(p => {
-        let cnt = 0;
-        Object.entries(doneByDate).forEach(([key, items]) => {
-          if (key.startsWith(prefix)) cnt += items.filter(e => e.project === p).length;
-        });
-        projData[p].push(cnt);
-      });
-    }
+    drawLineChart(labels, projects, projData, lineArea);
   }
-
-  drawLineChart(labels, projects, projData, area);
 }
 
 function drawLineChart(labels, projects, projData, container) {
@@ -1499,6 +1517,7 @@ document.getElementById('cal-toggle-btn').addEventListener('click', () => {
   currentView = currentView === 'board' ? 'calendar' : 'board';
   document.getElementById('board').classList.toggle('hidden', currentView === 'calendar');
   document.getElementById('calendar-view').classList.toggle('active', currentView === 'calendar');
+  document.querySelector('footer').style.display = currentView === 'calendar' ? 'none' : '';
   document.getElementById('cal-toggle-btn').textContent = currentView === 'calendar' ? '📋 看板' : '📅 日历';
   if (currentView === 'calendar') renderCalendar();
 });

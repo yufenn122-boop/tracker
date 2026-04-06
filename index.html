@@ -22,12 +22,28 @@
     flex-wrap: wrap;
   }
   header h1 { font-size: 16px; font-weight: 600; flex: 1; min-width: 80px; }
+
+  /* 搜索展开行 — 默认隐藏，点放大镜后显示 */
   .header-row2 {
     width: 100%;
-    display: flex;
+    display: none;
     gap: 8px;
     align-items: center;
   }
+  .header-row2.open { display: flex; }
+
+  #search-toggle {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.8);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 6px;
+    line-height: 1;
+  }
+  #search-toggle:hover { background: rgba(255,255,255,0.1); }
+
   #search-input {
     flex: 1;
     border: none;
@@ -68,6 +84,57 @@
   .header-btn:hover { background: #3a7de0; }
   #export-btn { background: #27ae60; }
   #export-btn:hover { background: #1e8449; }
+
+  /* 超时提醒条 */
+  #overdue-banner {
+    display: none;
+    background: #fff3cd;
+    border-bottom: 1px solid #ffc107;
+    padding: 8px 16px;
+    font-size: 13px;
+    color: #856404;
+    cursor: pointer;
+    user-select: none;
+  }
+  #overdue-banner:hover { background: #ffe69c; }
+
+  /* 超时弹窗 */
+  #overdue-modal {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4); z-index: 300;
+    align-items: center; justify-content: center;
+  }
+  #overdue-modal.show { display: flex; }
+  #overdue-box {
+    background: white; border-radius: 12px; padding: 20px;
+    width: 340px; max-height: 75vh; overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  #overdue-box h2 { font-size: 15px; color: #1a1a2e; }
+  .overdue-proj-name {
+    font-size: 11px; font-weight: 600; color: #f97316;
+    margin-bottom: 6px; text-transform: uppercase;
+  }
+  .overdue-item {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 6px 8px; background: #fff8f0;
+    border-radius: 6px; margin-bottom: 4px;
+  }
+  .overdue-item-text { flex: 1; font-size: 13px; color: #333; }
+  .overdue-item-age { font-size: 10px; color: #aaa; margin-top: 2px; }
+  .overdue-done-btn {
+    background: #27ae60; color: white; border: none;
+    border-radius: 5px; padding: 3px 8px; font-size: 11px; cursor: pointer; flex-shrink: 0;
+  }
+  .overdue-del-btn {
+    background: #e74c3c; color: white; border: none;
+    border-radius: 5px; padding: 3px 8px; font-size: 11px; cursor: pointer; flex-shrink: 0;
+  }
+
+  @media (max-width: 600px) {
+    #overdue-box { width: calc(100vw - 32px); }
+  }
 
   /* ── Desktop: horizontal board ── */
   #board {
@@ -617,6 +684,7 @@
 
 <header>
   <h1>项目进度表</h1>
+  <button id="search-toggle" title="搜索">🔍</button>
   <button class="header-btn" id="cal-toggle-btn">📅 日历</button>
   <button class="header-btn" id="export-btn">导出</button>
   <button class="header-btn" id="add-project-btn">+ 项目</button>
@@ -633,6 +701,14 @@
   </div>
 </header>
 
+<div id="overdue-banner"></div>
+
+<div id="overdue-modal">
+  <div id="overdue-box">
+    <h2>⏰ 超时任务</h2>
+    <div id="overdue-content"></div>
+  </div>
+</div>
 <div id="board"></div>
 <div id="calendar-view">
   <div class="cal-nav">
@@ -825,14 +901,40 @@ function render() {
 
   const isMobile = window.innerWidth <= 600;
   const isFiltering = filterKeyword || filterRange.type !== 'all';
+  const now = Date.now();
+  const OVERDUE_MS = 7 * 24 * 60 * 60 * 1000;
+  const todayStr = new Date().toDateString();
 
   // update badge
   const badge = document.getElementById('filter-badge');
   badge.classList.toggle('show', isFiltering);
 
+  // 超时提醒条
+  const overdueBanner = document.getElementById('overdue-banner');
+  let totalOverdue = 0;
+  state.projects.forEach(proj => {
+    (state.entries[proj] || []).forEach(e => {
+      if (e.status === 'todo' && (now - (e.origTs || e.ts)) > OVERDUE_MS) totalOverdue++;
+    });
+  });
+  if (totalOverdue > 0) {
+    overdueBanner.textContent = `⚠️ 当前存在 ${totalOverdue} 条超时任务，点击查看`;
+    overdueBanner.style.display = 'block';
+  } else {
+    overdueBanner.style.display = 'none';
+  }
+
   state.projects.forEach(proj => {
     const allEntries = state.entries[proj] || [];
-    const entries = getFilteredEntries(allEntries);
+
+    // 看板只显示：未超时的 todo + 今日完成的 done
+    const visibleEntries = allEntries.filter(e => {
+      if (e.status === 'todo') return (now - (e.origTs || e.ts)) <= OVERDUE_MS;
+      if (e.status === 'done') return new Date(e.ts).toDateString() === todayStr;
+      return false;
+    });
+
+    const entries = isFiltering ? getFilteredEntries(visibleEntries) : visibleEntries;
     const latest = allEntries[allEntries.length - 1];
 
     // hide column if filtering and no results
@@ -846,8 +948,9 @@ function render() {
     const col = document.createElement('div');
     col.className = 'column' + (openCols.has(proj) ? ' open' : '');
 
-    const todoCount = allEntries.filter(e => e.status === 'todo').length;
-    const allDone = allEntries.length > 0 && todoCount === 0;
+    // 徽章只计未超时的 todo
+    const todoCount = allEntries.filter(e => e.status === 'todo' && (now - (e.origTs || e.ts)) <= OVERDUE_MS).length;
+    const allDone = allEntries.length > 0 && allEntries.filter(e => e.status === 'todo').length === 0;
     const countLabel = allDone ? '全部完成！🎉' : String(todoCount);
 
     const entriesHtml = entries.length === 0
@@ -1211,6 +1314,93 @@ document.getElementById('filter-badge').addEventListener('click', () => {
   document.getElementById('time-filter').value = 'all';
   render();
 });
+
+// 搜索放大镜展开/收起
+document.getElementById('search-toggle').addEventListener('click', () => {
+  const row = document.querySelector('.header-row2');
+  const open = row.classList.toggle('open');
+  if (open) setTimeout(() => document.getElementById('search-input').focus(), 50);
+});
+
+// 超时提醒条点击 → 打开弹窗
+document.getElementById('overdue-banner').addEventListener('click', () => {
+  renderOverdueModal();
+  document.getElementById('overdue-modal').classList.add('show');
+});
+
+// 超时弹窗点空白关闭
+document.getElementById('overdue-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('overdue-modal'))
+    document.getElementById('overdue-modal').classList.remove('show');
+});
+
+function renderOverdueModal() {
+  const OVERDUE_MS = 7 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const content = document.getElementById('overdue-content');
+  content.innerHTML = '';
+
+  state.projects.forEach(proj => {
+    const overdueItems = (state.entries[proj] || []).filter(
+      e => e.status === 'todo' && (now - (e.origTs || e.ts)) > OVERDUE_MS
+    );
+    if (!overdueItems.length) return;
+
+    const group = document.createElement('div');
+    group.style.marginBottom = '12px';
+    const title = document.createElement('div');
+    title.className = 'overdue-proj-name';
+    title.textContent = proj;
+    group.appendChild(title);
+
+    overdueItems.forEach(e => {
+      const ageDays = Math.floor((now - (e.origTs || e.ts)) / 86400000);
+      const item = document.createElement('div');
+      item.className = 'overdue-item';
+      item.innerHTML = `
+        <div class="overdue-item-text">
+          ${e.text}
+          <div class="overdue-item-age">已超时 ${ageDays} 天</div>
+        </div>
+        <button class="overdue-done-btn" data-id="${e.id}" data-proj="${proj}">完成</button>
+        <button class="overdue-del-btn" data-id="${e.id}" data-proj="${proj}">删除</button>
+      `;
+      group.appendChild(item);
+    });
+    content.appendChild(group);
+  });
+
+  if (!content.children.length) {
+    content.innerHTML = '<div style="color:#aaa;font-size:13px;text-align:center;padding:12px 0">暂无超时任务</div>';
+  }
+
+  // 完成按钮
+  content.querySelectorAll('.overdue-done-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const { id, proj } = btn.dataset;
+      const entry = state.entries[proj]?.find(e => e.id == id);
+      if (!entry) return;
+      const oldStatus = entry.status, oldTs = entry.ts;
+      entry.status = 'done'; entry.ts = Date.now();
+      render(); renderOverdueModal();
+      const { error } = await sb.from('entries').update({ status: 'done', ts: entry.ts }).eq('id', id);
+      if (error) { entry.status = oldStatus; entry.ts = oldTs; render(); renderOverdueModal(); }
+    });
+  });
+
+  // 删除按钮
+  content.querySelectorAll('.overdue-del-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const { id, proj } = btn.dataset;
+      if (!confirm('确认删除这条超时任务？')) return;
+      const oldEntries = [...state.entries[proj]];
+      state.entries[proj] = state.entries[proj].filter(e => e.id != id);
+      render(); renderOverdueModal();
+      const { error } = await sb.from('entries').delete().eq('id', id);
+      if (error) { state.entries[proj] = oldEntries; render(); renderOverdueModal(); }
+    });
+  });
+}
 // Init — called after auth
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/tracker/sw.js');

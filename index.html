@@ -284,6 +284,15 @@
 
   /* ── Mobile ── */
   @media (max-width: 600px) {
+    body { padding-bottom: 60px; } /* 给固定 footer 留空间 */
+
+    footer {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 100;
+      box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
+    }
+
     #board {
       flex-direction: column;
       overflow-x: hidden;
@@ -300,7 +309,7 @@
 
     /* collapsed by default on mobile */
     .column .col-entries { display: none; }
-    .column.open .col-entries { display: flex; max-height: 60vh; overflow-y: auto; }
+    .column.open .col-entries { display: flex; max-height: 40vh; overflow-y: auto; }
 
     .col-header { cursor: pointer; border-radius: 10px; border-bottom: none; }
     .column.open .col-header { border-radius: 10px 10px 0 0; border-bottom: 2px solid #4f8ef7; }
@@ -536,6 +545,24 @@
   .freq-tab.active { background: #4f8ef7; color: white; border-color: #4f8ef7; }
   #freq-chart-area { width: 100%; overflow-x: auto; }
 
+  /* Day inline info panel */
+  #day-info-panel {
+    background: white; border-radius: 10px; padding: 14px 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    display: none;
+  }
+  #day-info-panel.show { display: block; }
+  #day-info-title {
+    font-size: 13px; font-weight: 600; color: #1a1a2e; margin-bottom: 10px;
+  }
+  #day-info-pie { width: 100%; }
+  #day-detail-btn {
+    margin-top: 10px; width: 100%;
+    background: #4f8ef7; color: white; border: none;
+    border-radius: 8px; padding: 8px 0; font-size: 13px; cursor: pointer;
+  }
+  #day-detail-btn:hover { background: #3a7de0; }
+
   /* Day detail modal */
   #day-modal {
     display: none; position: fixed; inset: 0;
@@ -560,11 +587,6 @@
     background: #f0fff4; border-radius: 6px; margin-bottom: 3px;
   }
   .day-entry-time { font-size: 10px; color: #aaa; margin-top: 2px; }
-  #day-close {
-    align-self: flex-end;
-    background: #f0f2f5; border: none; border-radius: 7px;
-    padding: 6px 16px; cursor: pointer; font-size: 13px; color: #555;
-  }
 
   @media (max-width: 600px) {
     .cal-cell { min-height: 52px; padding: 4px; }
@@ -610,6 +632,12 @@
     <button id="cal-next">&#8250;</button>
   </div>
   <div class="cal-grid" id="cal-grid"></div>
+  <!-- 点击日期后内联显示当日分布 -->
+  <div id="day-info-panel">
+    <div id="day-info-title"></div>
+    <div id="day-info-pie"></div>
+    <button id="day-detail-btn">查看详细任务</button>
+  </div>
   <div class="freq-section">
     <div class="freq-title">项目完成分布</div>
     <div id="freq-pie-area"></div>
@@ -635,7 +663,6 @@
   <div id="day-box">
     <h2 id="day-modal-title"></h2>
     <div id="day-modal-content"></div>
-    <button id="day-close">关闭</button>
   </div>
 </div>
 
@@ -1259,7 +1286,7 @@ function renderCalendar() {
       cnt.textContent = `完成${done.length}任务`;
       cell.appendChild(cnt);
 
-      cell.addEventListener('click', () => showDayModal(key, done));
+      cell.addEventListener('click', () => showDayInfo(key, done));
     }
     grid.appendChild(cell);
   }
@@ -1277,11 +1304,29 @@ function renderCalendar() {
   renderFreqChart();
 }
 
+let currentDayEntries = [];
+
+function showDayInfo(dateKey, entries) {
+  const [y, m, d] = dateKey.split('-');
+  const panel = document.getElementById('day-info-panel');
+  document.getElementById('day-info-title').textContent = `${y}年${Number(m)}月${Number(d)}日 完成情况`;
+
+  // 扇形图：按项目统计
+  const totals = {};
+  entries.forEach(e => { totals[e.project] = (totals[e.project] || 0) + 1; });
+  const projects = Object.keys(totals);
+  drawPieChart(projects, totals, document.getElementById('day-info-pie'));
+
+  currentDayEntries = entries;
+  document.getElementById('day-detail-btn').dataset.dateKey = dateKey;
+  panel.classList.add('show');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
 function showDayModal(dateKey, entries) {
   const [y, m, d] = dateKey.split('-');
   document.getElementById('day-modal-title').textContent = `${y}年${Number(m)}月${Number(d)}日 完成任务`;
 
-  // group by project
   const byProj = {};
   entries.forEach(e => {
     if (!byProj[e.project]) byProj[e.project] = [];
@@ -1325,48 +1370,61 @@ function drawPieChart(projects, totals, container) {
     container.innerHTML = '<div style="color:#aaa;font-size:12px;text-align:center;padding:12px 0">暂无完成记录</div>';
     return;
   }
+
+  // 找出有数据的项目，并用 state.projects 顺序确定颜色索引
+  const activeProjs = projects.filter(p => totals[p] > 0);
+  const getColor = p => {
+    const idx = state.projects.indexOf(p);
+    return getProjColor(idx >= 0 ? idx : activeProjs.indexOf(p));
+  };
+
   const R = 60, CX = 70, CY = 70;
   const legendX = 148;
-  const svgH = Math.max(140, projects.filter(p => totals[p] > 0).length * 20 + 20);
+  const svgH = Math.max(140, activeProjs.length * 20 + 20);
   const svg = document.createElementNS(svgNS, 'svg');
   svg.setAttribute('width', '100%');
   svg.setAttribute('viewBox', `0 0 300 ${svgH}`);
   svg.setAttribute('style', 'display:block');
 
-  let startAngle = -Math.PI / 2;
-  projects.forEach((p, i) => {
-    const count = totals[p];
-    if (count === 0) return;
-    const angle = (count / grandTotal) * 2 * Math.PI;
-    const endAngle = startAngle + angle;
-    const x1 = CX + R * Math.cos(startAngle);
-    const y1 = CY + R * Math.sin(startAngle);
-    const x2 = CX + R * Math.cos(endAngle);
-    const y2 = CY + R * Math.sin(endAngle);
-    const largeArc = angle > Math.PI ? 1 : 0;
-    const path = document.createElementNS(svgNS, 'path');
-    path.setAttribute('d', `M${CX},${CY} L${x1},${y1} A${R},${R} 0 ${largeArc},1 ${x2},${y2} Z`);
-    path.setAttribute('fill', getProjColor(i));
-    svg.appendChild(path);
-    startAngle = endAngle;
-  });
+  if (activeProjs.length === 1) {
+    // 单项目：画整圆
+    const circle = document.createElementNS(svgNS, 'circle');
+    circle.setAttribute('cx', CX); circle.setAttribute('cy', CY);
+    circle.setAttribute('r', R); circle.setAttribute('fill', getColor(activeProjs[0]));
+    svg.appendChild(circle);
+  } else {
+    let startAngle = -Math.PI / 2;
+    activeProjs.forEach(p => {
+      const count = totals[p];
+      const angle = (count / grandTotal) * 2 * Math.PI;
+      const endAngle = startAngle + angle;
+      const x1 = CX + R * Math.cos(startAngle);
+      const y1 = CY + R * Math.sin(startAngle);
+      const x2 = CX + R * Math.cos(endAngle);
+      const y2 = CY + R * Math.sin(endAngle);
+      const largeArc = angle > Math.PI ? 1 : 0;
+      const path = document.createElementNS(svgNS, 'path');
+      path.setAttribute('d', `M${CX},${CY} L${x1},${y1} A${R},${R} 0 ${largeArc},1 ${x2},${y2} Z`);
+      path.setAttribute('fill', getColor(p));
+      svg.appendChild(path);
+      startAngle = endAngle;
+    });
+  }
 
-  let li = 0;
-  projects.forEach((p, i) => {
+  // 图例
+  activeProjs.forEach((p, li) => {
     const count = totals[p];
-    if (count === 0) return;
     const ly = 16 + li * 20;
     const rect = document.createElementNS(svgNS, 'rect');
     rect.setAttribute('x', legendX); rect.setAttribute('y', ly - 9);
     rect.setAttribute('width', 12); rect.setAttribute('height', 12);
-    rect.setAttribute('rx', 2); rect.setAttribute('fill', getProjColor(i));
+    rect.setAttribute('rx', 2); rect.setAttribute('fill', getColor(p));
     svg.appendChild(rect);
     const txt = document.createElementNS(svgNS, 'text');
     txt.setAttribute('x', legendX + 16); txt.setAttribute('y', ly);
     txt.setAttribute('font-size', '11'); txt.setAttribute('fill', '#333');
-    txt.textContent = `${p}  ${count}次 (${Math.round(count/grandTotal*100)}%)`;
+    txt.textContent = `${p}  ${count}次 (${Math.round(count / grandTotal * 100)}%)`;
     svg.appendChild(txt);
-    li++;
   });
 
   container.innerHTML = '';
@@ -1542,8 +1600,8 @@ document.querySelectorAll('.freq-tab').forEach(tab => {
   });
 });
 
-document.getElementById('day-close').addEventListener('click', () => {
-  document.getElementById('day-modal').classList.remove('show');
+document.getElementById('day-detail-btn').addEventListener('click', () => {
+  showDayModal(document.getElementById('day-detail-btn').dataset.dateKey, currentDayEntries);
 });
 document.getElementById('day-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('day-modal'))

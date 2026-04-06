@@ -686,6 +686,7 @@
   <h1>项目进度表</h1>
   <button id="search-toggle" title="搜索">🔍</button>
   <button class="header-btn" id="cal-toggle-btn">📅 日历</button>
+  <button class="header-btn" id="overdue-btn" style="background:#e74c3c;display:none">⏰ 超时</button>
   <button class="header-btn" id="export-btn">导出</button>
   <button class="header-btn" id="add-project-btn">+ 项目</button>
   <div class="header-row2">
@@ -721,9 +722,11 @@
   <div id="day-info-panel">
     <div id="day-info-title"></div>
     <div id="day-info-pie"></div>
+    <div id="day-info-top" style="font-size:12px;color:#555;margin:6px 0 2px;"></div>
     <button id="day-detail-btn">查看详细任务</button>
   </div>
   <div class="freq-section">
+    <div id="freq-empty-hint" style="display:none;color:#aaa;font-size:12px;text-align:center;padding:12px 0"></div>
     <div class="freq-title">完成趋势</div>
     <div class="freq-tabs">
       <button class="freq-tab active" data-range="week">本周</button>
@@ -909,8 +912,9 @@ function render() {
   const badge = document.getElementById('filter-badge');
   badge.classList.toggle('show', isFiltering);
 
-  // 超时提醒条
+  // 超时提醒条 + 按钮
   const overdueBanner = document.getElementById('overdue-banner');
+  const overdueBtn = document.getElementById('overdue-btn');
   let totalOverdue = 0;
   state.projects.forEach(proj => {
     (state.entries[proj] || []).forEach(e => {
@@ -920,8 +924,11 @@ function render() {
   if (totalOverdue > 0) {
     overdueBanner.textContent = `⚠️ 当前存在 ${totalOverdue} 条超时任务，点击查看`;
     overdueBanner.style.display = 'block';
+    overdueBtn.style.display = '';
+    overdueBtn.textContent = `⏰ 超时 ${totalOverdue}`;
   } else {
     overdueBanner.style.display = 'none';
+    overdueBtn.style.display = 'none';
   }
 
   state.projects.forEach(proj => {
@@ -1460,10 +1467,13 @@ function renderCalendar() {
   }
 
   // current month days
+  const isViewingCurrentMonth = today.getFullYear() === calYear && today.getMonth() === calMonth;
+
   for (let d = 1; d <= daysInMonth; d++) {
     const key = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const done = doneByDate[key] || [];
-    const isToday = today.getFullYear() === calYear && today.getMonth() === calMonth && today.getDate() === d;
+    // 只有查看当月时才高亮今日
+    const isToday = isViewingCurrentMonth && today.getDate() === d;
 
     const cell = document.createElement('div');
     cell.className = 'cal-cell' + (done.length ? ' has-done' : '') + (isToday ? ' today' : '');
@@ -1494,7 +1504,44 @@ function renderCalendar() {
     grid.appendChild(cell);
   }
 
-  renderFreqChart();
+  renderCalendarFreq();
+}
+
+function renderCalendarFreq() {
+  // 切换月份时：重置当日面板，根据当月是否有完成任务决定显示内容
+  const panel = document.getElementById('day-info-panel');
+  panel.classList.remove('show');
+
+  const doneByDate = buildDoneByDate();
+  const prefix = `${calYear}-${String(calMonth+1).padStart(2,'0')}-`;
+  const monthHasDone = Object.keys(doneByDate).some(k => k.startsWith(prefix));
+
+  const emptyHint = document.getElementById('freq-empty-hint');
+  const freqTitle = document.querySelector('.freq-section .freq-title');
+  const freqTabs = document.querySelector('.freq-tabs');
+  const freqChartArea = document.getElementById('freq-chart-area');
+  const freqLegend = document.getElementById('freq-legend');
+
+  if (!monthHasDone) {
+    emptyHint.textContent = `${calYear}年${calMonth+1}月暂无已完成的任务`;
+    emptyHint.style.display = 'block';
+    freqTitle.style.display = 'none';
+    freqTabs.style.display = 'none';
+    freqChartArea.innerHTML = '';
+    freqLegend.innerHTML = '';
+  } else {
+    emptyHint.style.display = 'none';
+    freqTitle.style.display = '';
+    freqTabs.style.display = '';
+    // 折线图基准设为当月第一天（非今日）
+    freqBaseDate = `${prefix}01`;
+    // 强制切换到月视图展示当月趋势
+    freqRange = 'month';
+    document.querySelectorAll('.freq-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.range === 'month');
+    });
+    renderFreqChart();
+  }
 }
 
 let currentDayEntries = [];
@@ -1510,11 +1557,27 @@ function showDayInfo(dateKey, entries) {
   const projects = Object.keys(totals);
   drawPieChart(projects, totals, document.getElementById('day-info-pie'));
 
+  // 最多完成项目
+  const topProj = projects.reduce((a, b) => totals[a] >= totals[b] ? a : b, projects[0]);
+  const topEl = document.getElementById('day-info-top');
+  if (topProj) {
+    topEl.textContent = `本日完成最多：${topProj}，${totals[topProj]}次`;
+    topEl.style.display = '';
+  } else {
+    topEl.style.display = 'none';
+  }
+
   currentDayEntries = entries;
   document.getElementById('day-detail-btn').dataset.dateKey = dateKey;
   panel.classList.add('show');
 
-  // 折线图跟随点击日期所在周/月
+  // 折线图跟随点击日期所在周/月，同时恢复趋势区显示
+  const emptyHint = document.getElementById('freq-empty-hint');
+  const freqTitle = document.querySelector('.freq-section .freq-title');
+  const freqTabs = document.querySelector('.freq-tabs');
+  emptyHint.style.display = 'none';
+  freqTitle.style.display = '';
+  freqTabs.style.display = '';
   freqBaseDate = dateKey;
   renderFreqChart();
 
@@ -1785,6 +1848,11 @@ document.getElementById('day-detail-btn').addEventListener('click', () => {
 document.getElementById('day-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('day-modal'))
     document.getElementById('day-modal').classList.remove('show');
+});
+
+document.getElementById('overdue-btn').addEventListener('click', () => {
+  renderOverdueModal();
+  document.getElementById('overdue-modal').classList.add('show');
 });
 </script>
 </body>

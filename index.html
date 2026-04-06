@@ -656,9 +656,11 @@ function render() {
     // Preview: prioritize earliest todo, fallback to latest entry
     const firstTodo = allEntries.find(e => e.status === 'todo');
     const previewEntry = firstTodo || allEntries[allEntries.length - 1];
-    const previewHtml = previewEntry
-      ? `<span class="preview-label ${previewEntry.status}">${previewEntry.status === 'todo' ? '当前进度' : '已完成'}</span><span class="preview-text">${previewEntry.text}</span>`
-      : '暂无记录';
+    const previewHtml = allDone
+      ? '<span class="preview-label done" style="background:transparent;color:#27ae60;font-size:12px;font-weight:700;">全部完成！🎉</span>'
+      : (previewEntry
+          ? `<span class="preview-label ${previewEntry.status}">${previewEntry.status === 'todo' ? '当前进度' : '已完成'}</span><span class="preview-text">${previewEntry.text}</span>`
+          : '暂无记录');
 
     col.innerHTML = `
       <div class="col-header">

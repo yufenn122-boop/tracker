@@ -1205,9 +1205,16 @@ function render() {
       if (!window.matchMedia('(max-width: 600px)').matches) return;
       const col = header.closest('.column');
       const proj = col.querySelector('.col-title').textContent;
+      const topBefore = col.getBoundingClientRect().top;
       if (openCols.has(proj)) openCols.delete(proj);
       else openCols.add(proj);
       render();
+      const newCol = document.querySelector(`.col-title`)
+        && [...document.querySelectorAll('.col-title')].find(el => el.textContent === proj)?.closest('.column');
+      if (newCol) {
+        const topAfter = newCol.getBoundingClientRect().top;
+        window.scrollBy({ top: topAfter - topBefore, behavior: 'instant' });
+      }
     });
   });
 
@@ -1255,7 +1262,19 @@ function render() {
       const savedY = window.scrollY;
       render();
       window.scrollTo({ top: savedY, behavior: 'instant' });
-      const { error } = await sb.from('entries').update({ status: newStatus, ts: newTs }).eq('id', id);
+      // 若 id 还是临时值，等它变成真实 id 再发请求
+      let realId = entry.id;
+      if (String(realId).startsWith('temp_')) {
+        await new Promise(resolve => {
+          const t = setInterval(() => {
+            if (!String(entry.id).startsWith('temp_')) { clearInterval(t); resolve(); }
+          }, 50);
+          setTimeout(() => { clearInterval(t); resolve(); }, 5000);
+        });
+        realId = entry.id;
+      }
+      if (String(realId).startsWith('temp_')) return; // insert 失败，放弃
+      const { error } = await sb.from('entries').update({ status: newStatus, ts: newTs }).eq('id', realId);
       if (error) {
         entry.status = oldStatus; entry.ts = oldTs;
         const savedY2 = window.scrollY;

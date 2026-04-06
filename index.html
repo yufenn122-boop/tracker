@@ -1021,7 +1021,7 @@ function render() {
     // 徽章只计未超时的 todo
     const todoCount = allEntries.filter(e => e.status === 'todo' && (now - (e.origTs || e.ts)) <= OVERDUE_MS).length;
     const allDone = allEntries.length > 0 && allEntries.filter(e => e.status === 'todo').length === 0;
-    const countLabel = allDone ? '全部完成！🎉' : String(todoCount);
+    const countLabel = allEntries.length === 0 ? '' : allDone ? '全部完成！🎉' : String(todoCount);
 
     const entriesHtml = entries.length === 0
       ? '<div class="empty-hint">暂无记录</div>'
@@ -1050,7 +1050,7 @@ function render() {
         <div class="col-header-left">
           <span class="col-chevron">▼</span>
           <span class="col-title">${proj}</span>
-          <span class="col-count">${countLabel}</span>
+          ${countLabel ? `<span class="col-count">${countLabel}</span>` : ''}
         </div>
         <button class="delete-col" data-proj="${proj}">×</button>
       </div>
@@ -1647,6 +1647,7 @@ function renderCalendarFreq() {
     freqTabs.style.display = 'none';
     freqChartArea.innerHTML = '';
     freqLegend.innerHTML = '';
+    document.getElementById('freq-summary').style.display = 'none';
   } else {
     emptyHint.style.display = 'none';
     freqTitle.style.display = '';

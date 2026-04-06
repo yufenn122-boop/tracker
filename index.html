@@ -506,13 +506,17 @@
     font-size: 11px;
   }
   .cal-done-count {
-    font-size: 10px;
+    font-size: 12px;
     color: #27ae60;
-    font-weight: 600;
-    background: #f0fff4;
-    border-radius: 4px;
-    padding: 1px 4px;
-    white-space: nowrap;
+    font-weight: 700;
+    background: #e6f9ee;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
   }
 
   /* Frequency chart */
@@ -639,17 +643,15 @@
     <button id="day-detail-btn">查看详细任务</button>
   </div>
   <div class="freq-section">
-    <div class="freq-title">项目完成分布</div>
+    <div class="freq-title">今日完成分布</div>
     <div id="freq-pie-area"></div>
-    <div id="freq-trend-section">
-      <div class="freq-title" style="margin-top:16px">完成趋势</div>
-      <div class="freq-tabs">
-        <button class="freq-tab active" data-range="day">日</button>
-        <button class="freq-tab" data-range="week">周</button>
-        <button class="freq-tab" data-range="month">月</button>
-      </div>
-      <div id="freq-chart-area"></div>
+    <div class="freq-title" style="margin-top:16px">完成趋势</div>
+    <div class="freq-tabs">
+      <button class="freq-tab active" data-range="week">本周</button>
+      <button class="freq-tab" data-range="month">本月</button>
     </div>
+    <div id="freq-chart-area"></div>
+    <div id="freq-legend"></div>
   </div>
 </div>
 
@@ -1217,7 +1219,7 @@ if ('serviceWorker' in navigator) {
 let currentView = 'board';
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth();
-let freqRange = 'day';
+let freqRange = 'week';
 
 function buildDoneByDate() {
   const map = {};
@@ -1283,7 +1285,7 @@ function renderCalendar() {
     if (done.length) {
       const cnt = document.createElement('div');
       cnt.className = 'cal-done-count';
-      cnt.textContent = `完成${done.length}任务`;
+      cnt.textContent = done.length;
       cell.appendChild(cnt);
 
       cell.addEventListener('click', () => showDayInfo(key, done));
@@ -1436,67 +1438,53 @@ function renderFreqChart() {
   const doneByDate = buildDoneByDate();
   const pieArea = document.getElementById('freq-pie-area');
   const lineArea = document.getElementById('freq-chart-area');
+  const legendArea = document.getElementById('freq-legend');
   const now = new Date();
 
-  const trendSection = document.getElementById('freq-trend-section');
-  trendSection.style.display = freqRange === 'day' ? 'none' : '';
+  // 扇形图：始终显示今日
+  const todayKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const todayTotals = buildPeriodTotals(projects, doneByDate, k => k === todayKey);
+  drawPieChart(projects, todayTotals, pieArea);
 
-  if (freqRange === 'day') {
-    // Pie: today only
-    const todayKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-    const totals = buildPeriodTotals(projects, doneByDate, k => k === todayKey);
-    drawPieChart(projects, totals, pieArea);
-    lineArea.innerHTML = '';
-  } else if (freqRange === 'week') {
-    // Current week: Mon–Sun
-    const dow = (now.getDay() + 6) % 7; // Mon=0
+  // 折线图：本周或本月
+  const labels = [];
+  const projData = {};
+  projects.forEach(p => { projData[p] = []; });
+
+  if (freqRange === 'week') {
+    const dow = (now.getDay() + 6) % 7;
     const weekStart = new Date(now); weekStart.setDate(now.getDate() - dow); weekStart.setHours(0,0,0,0);
-    const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6); weekEnd.setHours(23,59,59,999);
-
-    // Pie: whole week totals
-    const totals = buildPeriodTotals(projects, doneByDate, k => {
-      const t = new Date(k).getTime();
-      return t >= weekStart.getTime() && t <= weekEnd.getTime();
-    });
-    drawPieChart(projects, totals, pieArea);
-
-    // Line: each day of this week (Mon–Sun)
-    const labels = ['一','二','三','四','五','六','日'];
-    const projData = {};
-    projects.forEach(p => { projData[p] = []; });
     for (let d = 0; d < 7; d++) {
       const day = new Date(weekStart); day.setDate(weekStart.getDate() + d);
       const key = `${day.getFullYear()}-${String(day.getMonth()+1).padStart(2,'0')}-${String(day.getDate()).padStart(2,'0')}`;
+      labels.push(['一','二','三','四','五','六','日'][d]);
       const entries = doneByDate[key] || [];
-      projects.forEach(p => {
-        projData[p].push(entries.filter(e => e.project === p).length);
-      });
+      projects.forEach(p => projData[p].push(entries.filter(e => e.project === p).length));
     }
-    drawLineChart(labels, projects, projData, lineArea);
   } else {
-    // Current month: each day
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    const yr = now.getFullYear(), mo = now.getMonth();
-    const prefix = `${yr}-${String(mo+1).padStart(2,'0')}-`;
-
-    // Pie: whole month totals
-    const totals = buildPeriodTotals(projects, doneByDate, k => k.startsWith(prefix));
-    drawPieChart(projects, totals, pieArea);
-
-    // Line: each day of this month
-    const labels = [];
-    const projData = {};
-    projects.forEach(p => { projData[p] = []; });
+    const prefix = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-`;
     for (let d = 1; d <= daysInMonth; d++) {
       const key = `${prefix}${String(d).padStart(2,'0')}`;
       labels.push(String(d));
       const entries = doneByDate[key] || [];
-      projects.forEach(p => {
-        projData[p].push(entries.filter(e => e.project === p).length);
-      });
+      projects.forEach(p => projData[p].push(entries.filter(e => e.project === p).length));
     }
-    drawLineChart(labels, projects, projData, lineArea);
   }
+
+  drawLineChart(labels, projects, projData, lineArea);
+  drawLegend(projects, legendArea);
+}
+
+function drawLegend(projects, container) {
+  container.innerHTML = '';
+  container.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:8px;';
+  projects.forEach((p, i) => {
+    const item = document.createElement('div');
+    item.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;color:#555;';
+    item.innerHTML = `<span style="display:inline-block;width:12px;height:3px;border-radius:2px;background:${getProjColor(i)}"></span>${p}`;
+    container.appendChild(item);
+  });
 }
 
 function drawLineChart(labels, projects, projData, container) {

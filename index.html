@@ -2261,7 +2261,7 @@ async function generateAiReport() {
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-5.4',
+        model: 'claude-sonnet-4-6',
         messages: [{ role: 'user', content: prompt }],
         stream: true
       })

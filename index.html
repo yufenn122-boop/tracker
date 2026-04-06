@@ -20,6 +20,9 @@
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    z-index: 200;
   }
   header h1 { font-size: 16px; font-weight: 600; flex: 1; min-width: 80px; }
 
@@ -177,15 +180,17 @@
   .column.dragging { opacity: 0.4; }
   .column.drag-over { outline: 2px dashed #4f8ef7; outline-offset: 2px; }
   .col-header-left { display: flex; align-items: center; gap: 8px; }
-  .col-header span.col-title { color: #1a1a2e; }
+  .col-header span.col-title { color: #1a1a2e; cursor: text; border-radius: 3px; padding: 1px 3px; }
+  .col-header span.col-title:hover { background: rgba(79,142,247,0.1); }
+  .col-header span.col-title[contenteditable="true"] { background: #fffbe6; box-shadow: 0 0 0 1px #f0c040; outline: none; cursor: text; }
   .col-count {
     background: #f97316;
     color: white;
     border-radius: 50%;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
-    width: 22px;
-    height: 22px;
+    width: 18px;
+    height: 18px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -684,9 +689,8 @@
 </div>
 
 <header>
-  <h1>项目进度表</h1>
+  <button class="header-btn" id="cal-toggle-btn" style="flex:1;text-align:left;background:none;border:1px solid rgba(255,255,255,0.25);font-size:14px;font-weight:600;padding:6px 10px;">📋 看板</button>
   <button id="search-toggle" title="搜索">🔍</button>
-  <button class="header-btn" id="cal-toggle-btn">📅 日历</button>
   <button class="header-btn" id="overdue-btn" style="background:#e74c3c;display:none">⏰ 超时</button>
   <button class="header-btn" id="export-btn">导出</button>
   <div class="header-row2">
@@ -734,6 +738,7 @@
     </div>
     <div id="freq-chart-area"></div>
     <div id="freq-legend"></div>
+    <div id="freq-summary" style="display:none;font-size:12px;color:#555;margin-top:8px;padding-top:8px;border-top:1px solid #f0f2f5;"></div>
   </div>
 </div>
 
@@ -1089,10 +1094,56 @@ function render() {
     select.value = prevSelected;
   }
 
+  // Project name inline edit
+  document.querySelectorAll('.col-title').forEach(titleEl => {
+    titleEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (titleEl.contentEditable === 'true') return;
+      const oldName = titleEl.textContent;
+      titleEl.contentEditable = 'true';
+      titleEl.focus();
+      // select all
+      const range = document.createRange();
+      range.selectNodeContents(titleEl);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      async function saveRename() {
+        titleEl.contentEditable = 'false';
+        const newName = titleEl.textContent.trim();
+        if (!newName || newName === oldName) { titleEl.textContent = oldName; return; }
+        if (state.projects.includes(newName)) { titleEl.textContent = oldName; return; }
+        // update state
+        const idx = state.projects.indexOf(oldName);
+        if (idx === -1) return;
+        state.projects[idx] = newName;
+        state.entries[newName] = state.entries[oldName];
+        delete state.entries[oldName];
+        if (openCols.has(oldName)) { openCols.delete(oldName); openCols.add(newName); }
+        saveOrder();
+        render();
+        // update DB
+        await sb.from('entries').update({ project: newName }).eq('project', oldName);
+      }
+
+      titleEl.addEventListener('blur', saveRename, { once: true });
+      titleEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); titleEl.blur(); }
+        if (e.key === 'Escape') {
+          titleEl.contentEditable = 'false';
+          titleEl.textContent = oldName;
+          titleEl.removeEventListener('blur', saveRename);
+        }
+      }, { once: true });
+    });
+  });
+
   // Mobile: toggle open/close on header click
   document.querySelectorAll('.col-header').forEach(header => {
     header.addEventListener('click', (e) => {
       if (e.target.classList.contains('delete-col')) return;
+      if (e.target.classList.contains('col-title')) return;
       if (!window.matchMedia('(max-width: 600px)').matches) return;
       const col = header.closest('.column');
       const proj = col.querySelector('.col-title').textContent;
@@ -1741,6 +1792,19 @@ function renderFreqChart() {
 
   drawLineChart(labels, projects, projData, lineArea);
   drawLegend(projects, legendArea);
+
+  // 总结：本周/本月任务重点
+  const summaryEl = document.getElementById('freq-summary');
+  const periodTotals = {};
+  projects.forEach(p => { periodTotals[p] = projData[p].reduce((a, b) => a + b, 0); });
+  const topProj = projects.reduce((a, b) => (periodTotals[a] || 0) >= (periodTotals[b] || 0) ? a : b, projects[0]);
+  const topCount = topProj ? periodTotals[topProj] : 0;
+  if (topCount > 0) {
+    summaryEl.textContent = `${freqRange === 'week' ? '本周' : '本月'}任务重点：${topProj}，共完成 ${topCount} 次`;
+    summaryEl.style.display = '';
+  } else {
+    summaryEl.style.display = 'none';
+  }
 }
 
 function drawLegend(projects, container) {
@@ -1831,7 +1895,7 @@ document.getElementById('cal-toggle-btn').addEventListener('click', () => {
   document.getElementById('board').classList.toggle('hidden', currentView === 'calendar');
   document.getElementById('calendar-view').classList.toggle('active', currentView === 'calendar');
   document.querySelector('footer').style.display = currentView === 'calendar' ? 'none' : '';
-  document.getElementById('cal-toggle-btn').textContent = currentView === 'calendar' ? '📋 看板' : '📅 日历';
+  document.getElementById('cal-toggle-btn').textContent = currentView === 'calendar' ? '📅 日历' : '📋 看板';
   if (currentView === 'calendar') renderCalendar();
 });
 

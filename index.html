@@ -768,12 +768,24 @@
   }
   #ai-result.loading { color: #aaa; }
   #ai-footer { display: flex; gap: 8px; flex-shrink: 0; }
-  #ai-generate-btn { flex: 1; background: #4f8ef7; color: white; border: none; border-radius: 8px; padding: 9px; font-size: 13px; cursor: pointer; }
-  #ai-generate-btn:hover { background: #3a7de0; }
-  #ai-generate-btn:disabled { background: #a0b8e8; cursor: not-allowed; }
-  #ai-copy-btn { background: #f0f2f5; color: #555; border: none; border-radius: 8px; padding: 9px 14px; font-size: 13px; cursor: pointer; }
+  #ai-copy-btn { background: #f0f2f5; color: #555; border: none; border-radius: 8px; padding: 9px 14px; font-size: 13px; cursor: pointer; flex: 1; }
   #ai-copy-btn:hover { background: #e0e4ea; }
   @media (max-width: 600px) { #ai-box { width: calc(100vw - 32px); } }
+  /* 日历报告入口 */
+  #report-links {
+    display: none;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #f0f2f5;
+  }
+  #report-links.show { display: flex; }
+  .report-link-btn {
+    border: 1px solid #4f8ef7; background: white; color: #4f8ef7;
+    border-radius: 6px; padding: 5px 12px; font-size: 12px; cursor: pointer;
+  }
+  .report-link-btn:hover { background: #f0f6ff; }
 </style>
 </head>
 <body>
@@ -830,6 +842,10 @@
     <div id="day-info-pie"></div>
     <div id="day-info-top" style="font-size:12px;color:#555;margin:6px 0 2px;"></div>
     <button id="day-detail-btn">查看详细任务</button>
+    <div id="report-links">
+      <button class="report-link-btn" id="week-report-btn">📄 本周报告</button>
+      <button class="report-link-btn" id="month-report-btn">📄 本月报告</button>
+    </div>
   </div>
   <div class="freq-section">
     <div id="freq-empty-hint" style="display:none;color:#aaa;font-size:12px;text-align:center;padding:12px 0"></div>
@@ -873,14 +889,9 @@
 
 <div id="ai-modal">
   <div id="ai-box">
-    <h2>AI 周报</h2>
-    <div id="ai-range-tabs">
-      <button class="active" data-range="week">本周</button>
-      <button data-range="month">本月</button>
-    </div>
-    <div id="ai-result" class="loading">点击"生成"让 AI 帮你整理任务完成情况</div>
+    <h2 id="ai-modal-title">AI 报告</h2>
+    <div id="ai-result" class="loading">加载中…</div>
     <div id="ai-footer">
-      <button id="ai-generate-btn">✨ 生成</button>
       <button id="ai-copy-btn">复制</button>
     </div>
   </div>
@@ -1016,7 +1027,7 @@ async function loadFromDB() {
     entries[row.project].push({ id: row.id, text: row.text, status: row.status, ts: row.ts, origTs: row.orig_ts || row.ts });
   });
 
-  state.projects = Array.from(projects);
+  state.projects = Array.from(projects).filter(p => !p.startsWith('__report_'));
 
   // Apply saved order
   const savedOrder = loadOrder();
@@ -1028,6 +1039,7 @@ async function loadFromDB() {
 
   state.entries = entries;
   render();
+  startAutoReportScheduler();
 }
 
 function render() {
@@ -1091,8 +1103,10 @@ function render() {
 
     // 徽章只计未超时的 todo
     const todoCount = allEntries.filter(e => e.status === 'todo' && (now - (e.origTs || e.ts)) <= OVERDUE_MS).length;
-    const allDone = allEntries.length > 0 && allEntries.filter(e => e.status === 'todo').length === 0;
-    const countLabel = allEntries.length === 0 ? '' : allDone ? '全部完成！🎉' : String(todoCount);
+    // allDone：有可见内容（今日done或未超时todo）且没有待办
+    const hasVisible = visibleEntries.length > 0;
+    const allDone = hasVisible && todoCount === 0;
+    const countLabel = !hasVisible ? '' : allDone ? '全部完成！🎉' : String(todoCount);
 
     const entriesHtml = entries.length === 0
       ? '<div class="empty-hint">暂无记录</div>'
@@ -1109,9 +1123,10 @@ function render() {
             </div>
           </div>`).join('');
 
-    // Preview: prioritize earliest todo, fallback to latest entry
-    const firstTodo = allEntries.find(e => e.status === 'todo');
-    const previewEntry = firstTodo || allEntries[allEntries.length - 1];
+    // Preview: prioritize earliest todo, fallback to today's done; if nothing visible, show empty
+    const firstTodo = visibleEntries.find(e => e.status === 'todo');
+    const todayDone = visibleEntries.filter(e => e.status === 'done');
+    const previewEntry = firstTodo || todayDone[todayDone.length - 1] || null;
     const previewHtml = previewEntry
       ? `<span class="preview-label ${previewEntry.status}">${previewEntry.status === 'todo' ? '当前进度' : '已完成'}</span><span class="preview-text">${previewEntry.text}</span>`
       : '暂无记录';
@@ -1850,6 +1865,7 @@ function showDayInfo(dateKey, entries, clickedCell) {
   currentDayEntries = entries;
   document.getElementById('day-detail-btn').dataset.dateKey = dateKey;
   panel.classList.add('show');
+  updateReportLinks(dateKey);
 
   // 折线图跟随点击日期所在周/月，同时恢复趋势区显示
   const emptyHint = document.getElementById('freq-empty-hint');
@@ -2006,7 +2022,7 @@ function renderFreqChart() {
     }
   }
 
-  drawLineChart(labels, projects, projData, lineArea);
+  drawStackedBarChart(labels, projects, projData, lineArea);
   drawLegend(projects, legendArea);
 
   // 总结：本周/本月任务重点
@@ -2034,16 +2050,21 @@ function drawLegend(projects, container) {
   });
 }
 
-function drawLineChart(labels, projects, projData, container) {
+function drawStackedBarChart(labels, projects, projData, container) {
   const svgNS = 'http://www.w3.org/2000/svg';
   const W = container.clientWidth || 320;
-  const H = 100;
   const n = labels.length;
-  const allCounts = Object.values(projData).flat();
-  const maxVal = Math.max(...allCounts, 1);
   const padL = 20, padR = 8, padT = 8, padB = 22;
+  const H = 110;
   const chartW = W - padL - padR;
   const chartH = H - padT - padB;
+
+  // compute per-day totals for max scale
+  const dayTotals = labels.map((_, i) => projects.reduce((s, p) => s + (projData[p][i] || 0), 0));
+  const maxVal = Math.max(...dayTotals, 1);
+
+  const barW = Math.max(4, Math.floor(chartW / n) - 2);
+  const gap = (chartW - barW * n) / (n + 1);
 
   const svg = document.createElementNS(svgNS, 'svg');
   svg.setAttribute('width', '100%');
@@ -2057,50 +2078,52 @@ function drawLineChart(labels, projects, projData, container) {
   base.setAttribute('stroke', '#e0e0e0'); base.setAttribute('stroke-width', '1');
   svg.appendChild(base);
 
-  // X labels (show every nth to avoid crowding)
-  const step = n <= 12 ? 1 : Math.ceil(n / 12);
-  labels.forEach((lbl, i) => {
-    if (i % step !== 0 && i !== n - 1) return;
-    const x = padL + (i / (n - 1 || 1)) * chartW;
-    const t = document.createElementNS(svgNS, 'text');
-    t.setAttribute('x', x); t.setAttribute('y', H - 4);
-    t.setAttribute('text-anchor', 'middle');
-    t.setAttribute('font-size', '8'); t.setAttribute('fill', '#aaa');
-    t.textContent = lbl;
-    svg.appendChild(t);
-  });
+  // Bars
+  for (let i = 0; i < n; i++) {
+    const x = padL + gap + i * (barW + gap);
+    let yOffset = padT + chartH;
 
-  // Lines per project
-  projects.forEach((p, pi) => {
-    const counts = projData[p];
-    const hasAny = counts.some(c => c > 0);
-    if (!hasAny) return;
-    const color = getProjColor(pi);
-    let d = '';
-    counts.forEach((c, i) => {
-      const x = padL + (i / (n - 1 || 1)) * chartW;
-      const y = padT + chartH - (c / maxVal) * chartH;
-      d += (i === 0 ? 'M' : 'L') + `${x.toFixed(1)},${y.toFixed(1)}`;
+    // stack from bottom: iterate projects in order
+    projects.forEach((p, pi) => {
+      const count = projData[p][i] || 0;
+      if (count === 0) return;
+      const barH = Math.max(2, (count / maxVal) * chartH);
+      yOffset -= barH;
+      const rect = document.createElementNS(svgNS, 'rect');
+      rect.setAttribute('x', x);
+      rect.setAttribute('y', yOffset);
+      rect.setAttribute('width', barW);
+      rect.setAttribute('height', barH);
+      rect.setAttribute('fill', getProjColor(pi));
+      rect.setAttribute('rx', pi === 0 ? 0 : 0); // flat segments
+      svg.appendChild(rect);
     });
-    const path = document.createElementNS(svgNS, 'path');
-    path.setAttribute('d', d);
-    path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', color);
-    path.setAttribute('stroke-width', '1.5');
-    path.setAttribute('stroke-linejoin', 'round');
-    svg.appendChild(path);
 
-    // Dots for non-zero points
-    counts.forEach((c, i) => {
-      if (c === 0) return;
-      const x = padL + (i / (n - 1 || 1)) * chartW;
-      const y = padT + chartH - (c / maxVal) * chartH;
-      const circle = document.createElementNS(svgNS, 'circle');
-      circle.setAttribute('cx', x); circle.setAttribute('cy', y);
-      circle.setAttribute('r', '2.5'); circle.setAttribute('fill', color);
-      svg.appendChild(circle);
-    });
-  });
+    // round top of the whole bar
+    const total = dayTotals[i];
+    if (total > 0) {
+      const topY = padT + chartH - (total / maxVal) * chartH;
+      const cap = document.createElementNS(svgNS, 'rect');
+      cap.setAttribute('x', x); cap.setAttribute('y', topY);
+      cap.setAttribute('width', barW); cap.setAttribute('height', 3);
+      cap.setAttribute('rx', 2);
+      cap.setAttribute('fill', 'transparent');
+      svg.appendChild(cap);
+    }
+
+    // X label
+    const step = n <= 12 ? 1 : Math.ceil(n / 12);
+    if (i % step === 0 || i === n - 1) {
+      const t = document.createElementNS(svgNS, 'text');
+      t.setAttribute('x', x + barW / 2);
+      t.setAttribute('y', H - 4);
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('font-size', '8');
+      t.setAttribute('fill', '#aaa');
+      t.textContent = labels[i];
+      svg.appendChild(t);
+    }
+  }
 
   container.innerHTML = '';
   container.appendChild(svg);
@@ -2194,35 +2217,37 @@ document.getElementById('today-modal').addEventListener('click', e => {
     document.getElementById('today-modal').classList.remove('show');
 });
 
-// ── AI 周报 ──
+// ── AI 报告 ──
 const OPENAI_BASE_URL = 'https://code.ppchat.vip/v1';
 const OPENAI_API_KEY = 'sk-3n7CvylU5VAjPZNmycGs1SeNOoJOmbBB4Z1nq11sBzli7Mfq';
-let aiRange = 'week';
+const REPORT_WEEK_PROJ = '__report_week__';
+const REPORT_MONTH_PROJ = '__report_month__';
 
-function getAiRangeData() {
-  const now = new Date();
-  let startTs, label;
-  if (aiRange === 'week') {
-    const dow = (now.getDay() + 6) % 7;
-    const start = new Date(now); start.setHours(0,0,0,0); start.setDate(now.getDate() - dow);
-    startTs = start.getTime();
-    const end = new Date(start); end.setDate(start.getDate() + 6);
-    label = `${start.getMonth()+1}/${start.getDate()} ~ ${end.getMonth()+1}/${end.getDate()}`;
-  } else {
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    startTs = start.getTime();
-    label = `${now.getFullYear()}年${now.getMonth()+1}月`;
-  }
-
-  const byProj = {};
-  state.projects.forEach(proj => {
-    const done = (state.entries[proj] || []).filter(e => e.status === 'done' && e.ts >= startTs);
-    if (done.length) byProj[proj] = done;
-  });
-  return { byProj, label };
+// 计算周期 key
+function getWeekKey(date) {
+  const d = new Date(date);
+  const dow = (d.getDay() + 6) % 7;
+  const mon = new Date(d); mon.setDate(d.getDate() - dow); mon.setHours(0,0,0,0);
+  const y = mon.getFullYear();
+  // ISO week number
+  const jan4 = new Date(y, 0, 4);
+  const startOfWeek1 = new Date(jan4); startOfWeek1.setDate(jan4.getDate() - ((jan4.getDay()+6)%7));
+  const weekNum = Math.floor((mon - startOfWeek1) / 604800000) + 1;
+  return `${y}-W${String(weekNum).padStart(2,'0')}`;
+}
+function getMonthKey(date) {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
 }
 
-function buildPrompt(byProj, label) {
+// 从 state 里读已存报告（project 字段为特殊值，status 字段存 period_key，text 存内容）
+function getSavedReport(type, periodKey) {
+  const proj = type === 'week' ? REPORT_WEEK_PROJ : REPORT_MONTH_PROJ;
+  const list = state.entries[proj] || [];
+  return list.find(e => e.status === periodKey) || null;
+}
+
+function buildReportPrompt(byProj, label) {
   const lines = [`以下是我${label}的任务完成记录：\n`];
   let total = 0;
   Object.entries(byProj).forEach(([proj, items]) => {
@@ -2236,85 +2261,124 @@ function buildPrompt(byProj, label) {
   return lines.join('\n');
 }
 
-async function generateAiReport() {
-  const btn = document.getElementById('ai-generate-btn');
-  const result = document.getElementById('ai-result');
-  const { byProj, label } = getAiRangeData();
-  const prompt = buildPrompt(byProj, label);
-
-  if (!prompt) {
-    result.className = 'loading';
-    result.textContent = `${label}暂无已完成的任务`;
-    return;
-  }
-
-  btn.disabled = true;
-  btn.textContent = '生成中…';
-  result.className = 'loading';
-  result.textContent = '正在请求 AI…';
-
-  try {
-    const resp = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        messages: [{ role: 'user', content: prompt }],
-        stream: true
-      })
+function getRangeData(type, refDate) {
+  const now = refDate || new Date();
+  let startTs, label;
+  if (type === 'week') {
+    const dow = (now.getDay() + 6) % 7;
+    const start = new Date(now); start.setHours(0,0,0,0); start.setDate(now.getDate() - dow);
+    startTs = start.getTime();
+    const end = new Date(start); end.setDate(start.getDate() + 6);
+    label = `${start.getMonth()+1}/${start.getDate()} ~ ${end.getMonth()+1}/${end.getDate()}`;
+  } else {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    startTs = start.getTime();
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth()+1, 0, 23, 59, 59, 999).getTime();
+    label = `${now.getFullYear()}年${now.getMonth()+1}月`;
+    const byProj = {};
+    state.projects.forEach(proj => {
+      const done = (state.entries[proj] || []).filter(e => e.status === 'done' && e.ts >= startTs && e.ts <= endOfMonth);
+      if (done.length) byProj[proj] = done;
     });
+    return { byProj, label };
+  }
+  const byProj = {};
+  state.projects.forEach(proj => {
+    const done = (state.entries[proj] || []).filter(e => e.status === 'done' && e.ts >= startTs);
+    if (done.length) byProj[proj] = done;
+  });
+  return { byProj, label };
+}
 
-    if (!resp.ok) {
-      const err = await resp.text();
-      throw new Error(err);
+async function callAiApi(prompt) {
+  const resp = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` },
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', messages: [{ role: 'user', content: prompt }] })
+  });
+  if (!resp.ok) throw new Error(await resp.text());
+  const json = await resp.json();
+  return json.choices?.[0]?.message?.content || '';
+}
+
+async function saveReport(type, periodKey, content) {
+  const proj = type === 'week' ? REPORT_WEEK_PROJ : REPORT_MONTH_PROJ;
+  const ts = Date.now();
+  // 检查是否已存在
+  const existing = getSavedReport(type, periodKey);
+  if (existing) {
+    await sb.from('entries').update({ text: content, ts }).eq('id', existing.id);
+    existing.text = content; existing.ts = ts;
+  } else {
+    const { data, error } = await sb.from('entries')
+      .insert({ project: proj, text: content, status: periodKey, ts, orig_ts: ts })
+      .select().single();
+    if (!error && data) {
+      if (!state.entries[proj]) state.entries[proj] = [];
+      state.entries[proj].push({ id: data.id, text: content, status: periodKey, ts, origTs: ts });
     }
-
-    result.className = '';
-    result.textContent = '';
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      const lines = buf.split('\n');
-      buf = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const data = line.slice(6).trim();
-        if (data === '[DONE]') break;
-        try {
-          const chunk = JSON.parse(data);
-          const text = chunk.choices?.[0]?.delta?.content || '';
-          result.textContent += text;
-          result.scrollTop = result.scrollHeight;
-        } catch {}
-      }
-    }
-  } catch (e) {
-    result.className = 'loading';
-    result.textContent = '请求失败：' + e.message;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '✨ 生成';
   }
 }
 
+async function autoGenerateReport(type) {
+  const now = new Date();
+  const periodKey = type === 'week' ? getWeekKey(now) : getMonthKey(now);
+  if (getSavedReport(type, periodKey)) return; // 已生成过
+  const { byProj, label } = getRangeData(type, now);
+  const prompt = buildReportPrompt(byProj, label);
+  if (!prompt) return;
+  try {
+    const content = await callAiApi(prompt);
+    if (content) await saveReport(type, periodKey, content);
+  } catch (e) { console.warn('Auto report failed:', e); }
+}
+
+// 检查是否需要自动生成报告（周日 or 月末，且当天还没生成过）
+function checkAutoReport() {
+  const now = new Date();
+  const isSunday = now.getDay() === 0;
+  const isLastDayOfMonth = now.getDate() === new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  if (isSunday) autoGenerateReport('week');
+  if (isLastDayOfMonth) autoGenerateReport('month');
+}
+
+// 每小时检查一次（页面打开时也立即检查）
+function startAutoReportScheduler() {
+  checkAutoReport();
+  setInterval(checkAutoReport, 60 * 60 * 1000);
+}
+
+// 打开 AI 报告弹窗，显示指定报告
+function openReportModal(type, periodKey, periodLabel) {
+  const modal = document.getElementById('ai-modal');
+  const title = document.getElementById('ai-modal-title');
+  const result = document.getElementById('ai-result');
+  title.textContent = `AI ${type === 'week' ? '周报' : '月报'} · ${periodLabel}`;
+  const saved = getSavedReport(type, periodKey);
+  if (saved) {
+    result.className = '';
+    result.textContent = saved.text;
+  } else {
+    result.className = 'loading';
+    result.textContent = '该时段暂无报告（报告在周日/月末自动生成）';
+  }
+  modal.classList.add('show');
+}
+
 document.getElementById('ai-btn').addEventListener('click', () => {
-  document.getElementById('ai-result').className = 'loading';
-  document.getElementById('ai-result').textContent = '点击"生成"让 AI 帮你整理任务完成情况';
-  document.getElementById('ai-modal').classList.add('show');
+  // header 按钮：显示本周报告
+  const now = new Date();
+  const periodKey = getWeekKey(now);
+  const dow = (now.getDay() + 6) % 7;
+  const mon = new Date(now); mon.setDate(now.getDate() - dow);
+  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  const label = `${mon.getMonth()+1}/${mon.getDate()} ~ ${sun.getMonth()+1}/${sun.getDate()}`;
+  openReportModal('week', periodKey, label);
 });
 document.getElementById('ai-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('ai-modal'))
     document.getElementById('ai-modal').classList.remove('show');
 });
-document.getElementById('ai-generate-btn').addEventListener('click', generateAiReport);
 document.getElementById('ai-copy-btn').addEventListener('click', () => {
   const text = document.getElementById('ai-result').textContent;
   navigator.clipboard.writeText(text).then(() => {
@@ -2323,13 +2387,33 @@ document.getElementById('ai-copy-btn').addEventListener('click', () => {
     setTimeout(() => btn.textContent = '复制', 1500);
   });
 });
-document.querySelectorAll('#ai-range-tabs button').forEach(tab => {
-  tab.addEventListener('click', () => {
-    aiRange = tab.dataset.range;
-    document.querySelectorAll('#ai-range-tabs button').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-  });
-});
+
+// 日历日期点击后显示报告入口
+function updateReportLinks(dateKey) {
+  const links = document.getElementById('report-links');
+  const weekBtn = document.getElementById('week-report-btn');
+  const monthBtn = document.getElementById('month-report-btn');
+  const d = new Date(dateKey);
+  const weekKey = getWeekKey(d);
+  const monthKey = getMonthKey(d);
+
+  const dow = (d.getDay() + 6) % 7;
+  const mon = new Date(d); mon.setDate(d.getDate() - dow);
+  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  const weekLabel = `${mon.getMonth()+1}/${mon.getDate()} ~ ${sun.getMonth()+1}/${sun.getDate()}`;
+  const monthLabel = `${d.getFullYear()}年${d.getMonth()+1}月`;
+
+  const hasWeek = !!getSavedReport('week', weekKey);
+  const hasMonth = !!getSavedReport('month', monthKey);
+
+  weekBtn.textContent = `📄 周报${hasWeek ? '' : '（未生成）'}`;
+  monthBtn.textContent = `📄 月报${hasMonth ? '' : '（未生成）'}`;
+
+  weekBtn.onclick = () => openReportModal('week', weekKey, weekLabel);
+  monthBtn.onclick = () => openReportModal('month', monthKey, monthLabel);
+
+  links.classList.add('show');
+}
 </script>
 </body>
 </html>

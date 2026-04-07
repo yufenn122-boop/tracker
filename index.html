@@ -786,6 +786,114 @@
     border-radius: 6px; padding: 5px 12px; font-size: 12px; cursor: pointer;
   }
   .report-link-btn:hover { background: #f0f6ff; }
+
+  /* 信封通知按钮 */
+  #notif-btn {
+    background: none; border: none; color: white;
+    font-size: 18px; cursor: pointer; padding: 4px 6px;
+    border-radius: 6px; position: relative; line-height: 1;
+    flex-shrink: 0;
+  }
+  #notif-btn:hover { background: rgba(255,255,255,0.1); }
+  #notif-dot {
+    display: none; position: absolute; top: 2px; right: 2px;
+    width: 8px; height: 8px; background: #e74c3c;
+    border-radius: 50%; border: 1.5px solid #1a1a2e;
+  }
+  #notif-dot.show { display: block; }
+
+  /* 通知面板 */
+  #notif-panel {
+    display: none; position: fixed; top: 52px; right: 8px;
+    width: 300px; max-height: 70vh; overflow-y: auto;
+    background: white; border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    z-index: 400; padding: 12px;
+  }
+  #notif-panel.show { display: block; }
+  .notif-item {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 8px; border-radius: 8px; background: #f7f9ff;
+    margin-bottom: 8px; cursor: pointer;
+  }
+  .notif-item:hover { background: #eef3ff; }
+  .notif-item-body { flex: 1; min-width: 0; }
+  .notif-item-title { font-size: 13px; font-weight: 600; color: #1a1a2e; }
+  .notif-item-sub { font-size: 11px; color: #888; margin-top: 2px; }
+  .notif-dismiss {
+    background: none; border: none; color: #ccc; cursor: pointer;
+    font-size: 14px; padding: 2px 4px; flex-shrink: 0;
+  }
+  .notif-dismiss:hover { color: #e74c3c; }
+  #notif-empty { color: #aaa; font-size: 13px; text-align: center; padding: 16px 0; }
+  #notif-panel-title {
+    font-size: 12px; font-weight: 600; color: #888;
+    margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+
+  /* 报告开关 */
+  .report-toggle-btn {
+    border: 1px solid #d0d7e3; background: white; color: #555;
+    border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer;
+  }
+  .report-toggle-btn.on { border-color: #27ae60; color: #27ae60; }
+  .report-toggle-btn.off { border-color: #aaa; color: #aaa; }
+  .report-toggle-btn:hover { background: #f0f2f5; }
+
+  /* 编辑确认按钮 */
+  .edit-confirm-btn {
+    position: absolute; bottom: -28px; right: 0;
+    background: #4f8ef7; color: white; border: none;
+    border-radius: 5px; padding: 3px 10px; font-size: 11px;
+    cursor: pointer; z-index: 10; white-space: nowrap;
+  }
+  .edit-confirm-btn:hover { background: #3a7de0; }
+  .entry-body { position: relative; }
+
+  /* 垃圾桶弹窗 */
+  #trash-btn {
+    background: none; border: none; color: rgba(255,255,255,0.7);
+    font-size: 16px; cursor: pointer; padding: 4px 6px;
+    border-radius: 6px; flex-shrink: 0;
+  }
+  #trash-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+  #trash-modal {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4); z-index: 300;
+    align-items: center; justify-content: center;
+  }
+  #trash-modal.show { display: flex; }
+  #trash-box {
+    background: white; border-radius: 12px; padding: 20px;
+    width: 340px; max-height: 75vh; overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  #trash-box h2 { font-size: 15px; color: #1a1a2e; }
+  .trash-section-title {
+    font-size: 11px; font-weight: 600; color: #aaa;
+    text-transform: uppercase; margin: 4px 0 6px;
+  }
+  .trash-item {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 7px 8px; background: #fafafa;
+    border-radius: 6px; margin-bottom: 4px;
+  }
+  .trash-item-body { flex: 1; min-width: 0; }
+  .trash-item-text { font-size: 13px; color: #333; word-break: break-all; }
+  .trash-item-sub { font-size: 10px; color: #aaa; margin-top: 2px; }
+  .trash-restore-btn {
+    background: #4f8ef7; color: white; border: none;
+    border-radius: 5px; padding: 3px 8px; font-size: 11px; cursor: pointer; flex-shrink: 0;
+  }
+  .trash-restore-btn:hover { background: #3a7de0; }
+  .trash-perm-del-btn {
+    background: none; border: none; color: #ccc; cursor: pointer;
+    font-size: 14px; padding: 2px 4px; flex-shrink: 0;
+  }
+  .trash-perm-del-btn:hover { color: #e74c3c; }
+  #trash-empty { color: #aaa; font-size: 13px; text-align: center; padding: 16px 0; }
+  @media (max-width: 600px) { #trash-box { width: calc(100vw - 32px); } }
 </style>
 </head>
 <body>
@@ -805,7 +913,8 @@
   <div style="flex:1"></div>
   <button class="header-btn" id="overdue-btn" style="background:#e74c3c;display:none">⏰ 超时</button>
   <button id="search-toggle" title="搜索">🔍</button>
-  <button class="header-btn" id="ai-btn">AI 周报</button>
+  <button id="notif-btn" title="AI 报告通知">✉️<span id="notif-dot"></span></button>
+  <button id="trash-btn" title="回收站">🗑</button>
   <button class="header-btn" id="export-btn">导出</button>
   <div class="header-row2">
     <input id="search-input" type="text" placeholder="搜索记录..." />
@@ -819,6 +928,12 @@
     <span id="filter-badge">已筛选 ×</span>
   </div>
 </header>
+
+<div id="notif-panel">
+  <div id="notif-panel-title">AI 报告通知</div>
+  <div id="notif-list"></div>
+  <div id="notif-empty" style="display:none">暂无新报告</div>
+</div>
 
 <div id="overdue-banner"></div>
 
@@ -845,6 +960,7 @@
     <div id="report-links">
       <button class="report-link-btn" id="week-report-btn">📄 本周报告</button>
       <button class="report-link-btn" id="month-report-btn">📄 本月报告</button>
+      <button class="report-toggle-btn on" id="report-toggle-btn">自动报告：开</button>
     </div>
   </div>
   <div class="freq-section">
@@ -894,6 +1010,14 @@
     <div id="ai-footer">
       <button id="ai-copy-btn">复制</button>
     </div>
+  </div>
+</div>
+
+<div id="trash-modal">
+  <div id="trash-box">
+    <h2>🗑 回收站</h2>
+    <div id="trash-content"></div>
+    <div id="trash-empty">回收站为空</div>
   </div>
 </div>
 
@@ -969,6 +1093,27 @@ async function simpleHash(str) {
 const DEFAULTS = ['家教', '督学群', '单片机', '自媒体', '雪花酥'];
 let state = { projects: [], entries: {} };
 const openCols = new Set();
+let lastAutoOpenedCol = null; // ⑥ 记录最近自动展开的列
+
+// ④ 垃圾桶：存已删除的项目/任务，仅内存，刷新后清空
+const trash = []; // { type:'entry'|'project', proj, entry?, entries?, ts }
+
+// ② 通知：存已生成的报告通知
+let notifications = [];
+function loadNotifications() {
+  try { notifications = JSON.parse(localStorage.getItem('report_notifs') || '[]'); } catch { notifications = []; }
+}
+function saveNotifications() {
+  localStorage.setItem('report_notifs', JSON.stringify(notifications));
+}
+
+// ③ 报告开关
+function isReportEnabled() {
+  return localStorage.getItem('report_enabled') !== 'false';
+}
+function setReportEnabled(val) {
+  localStorage.setItem('report_enabled', val ? 'true' : 'false');
+}
 
 // Project order persistence
 function saveOrder() {
@@ -1039,6 +1184,8 @@ async function loadFromDB() {
 
   state.entries = entries;
   render();
+  loadNotifications();
+  renderNotifDot();
   startAutoReportScheduler();
 }
 
@@ -1221,7 +1368,7 @@ function render() {
 
     if (!isMobile || openCols.has(proj)) {
       const colEntries = col.querySelector('.col-entries');
-      colEntries.scrollTop = colEntries.scrollHeight;
+      colEntries.scrollTop = 0; // 显示最早添加的任务（顶部）
     }
   });
 
@@ -1273,7 +1420,7 @@ function render() {
     });
   });
 
-  // Mobile: toggle open/close on header click
+  // Mobile: toggle open/close on header click — ⑥ 自动折叠上一个自动展开的列
   document.querySelectorAll('.col-header').forEach(header => {
     header.addEventListener('click', (e) => {
       if (e.target.classList.contains('delete-col')) return;
@@ -1283,17 +1430,26 @@ function render() {
       const proj = col.querySelector('.col-title').textContent;
       const topBefore = col.getBoundingClientRect().top;
       const wasOpen = openCols.has(proj);
-      if (wasOpen) openCols.delete(proj);
-      else openCols.add(proj);
+
+      if (!wasOpen) {
+        // 展开：若有上一个自动展开的列且用户未手动折叠过，自动折叠它
+        if (lastAutoOpenedCol && lastAutoOpenedCol !== proj && openCols.has(lastAutoOpenedCol)) {
+          openCols.delete(lastAutoOpenedCol);
+        }
+        openCols.add(proj);
+        lastAutoOpenedCol = proj;
+      } else {
+        openCols.delete(proj);
+        if (lastAutoOpenedCol === proj) lastAutoOpenedCol = null;
+      }
+
       render();
       const newCol = [...document.querySelectorAll('.col-title')]
         .find(el => el.textContent === proj)?.closest('.column');
       if (newCol) {
         if (!wasOpen) {
-          // 展开：确保列顶部在视口内，若已在视口内则保持位置
           const topAfter = newCol.getBoundingClientRect().top;
           window.scrollBy({ top: topAfter - topBefore, behavior: 'instant' });
-          // 若列底部超出视口，再把列顶部对齐到视口顶部留一点边距
           const rect = newCol.getBoundingClientRect();
           if (rect.bottom > window.innerHeight) {
             const headerH = document.querySelector('header').offsetHeight;
@@ -1317,21 +1473,23 @@ function render() {
     });
   });
 
-  // Delete column
+  // Delete column — 放入垃圾桶
   document.querySelectorAll('.delete-col').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const proj = btn.dataset.proj;
-      if (!confirm(`确认删除项目「${proj}」及其所有记录？`)) return;
-      const oldProjects = [...state.projects];
-      const oldEntries = { ...state.entries };
+      if (!confirm(`删除项目「${proj}」？可在回收站撤回。`)) return;
+      const savedEntries = (state.entries[proj] || []).map(e => ({ ...e }));
+      // 放入垃圾桶
+      trash.unshift({ type: 'project', proj, entries: savedEntries, ts: Date.now() });
+      if (trash.length > 50) trash.pop();
       // Optimistic update
       state.projects = state.projects.filter(p => p !== proj);
       delete state.entries[proj];
       openCols.delete(proj);
       render();
-      const { error } = await sb.from('entries').delete().eq('project', proj);
-      if (error) { state.projects = oldProjects; state.entries = oldEntries; render(); }
+      // 真正删除 DB（垃圾桶里保留数据，撤回时重新 insert）
+      await sb.from('entries').delete().eq('project', proj);
     });
   });
 
@@ -1373,7 +1531,7 @@ function render() {
     });
   });
 
-  // Edit entry
+  // Edit entry — ⑤ 加确认按钮
   document.querySelectorAll('.edit-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1391,12 +1549,21 @@ function render() {
       sel.removeAllRanges();
       sel.addRange(range);
 
+      // 添加确认按钮
+      const confirmBtn = document.createElement('button');
+      confirmBtn.className = 'edit-confirm-btn';
+      confirmBtn.textContent = '✓ 确认';
+      entryEl.querySelector('.entry-body').appendChild(confirmBtn);
+
+      let saved = false;
       async function saveEdit() {
+        if (saved) return;
+        saved = true;
         const newText = textEl.innerText.trim();
         textEl.contentEditable = 'false';
+        confirmBtn.remove();
         if (newText && newText !== state.entries[proj][Number(idx)].text) {
           const oldText = state.entries[proj][Number(idx)].text;
-          // Optimistic update
           state.entries[proj][Number(idx)].text = newText;
           render();
           const { error } = await sb.from('entries').update({ text: newText }).eq('id', id);
@@ -1406,26 +1573,34 @@ function render() {
         }
       }
 
-      textEl.addEventListener('blur', saveEdit, { once: true });
+      confirmBtn.addEventListener('click', (e) => { e.stopPropagation(); saveEdit(); });
       textEl.addEventListener('keydown', e => {
-        if (e.key === 'Enter') { e.preventDefault(); textEl.blur(); }
-        if (e.key === 'Escape') { textEl.contentEditable = 'false'; render(); }
+        if (e.key === 'Enter') { e.preventDefault(); saveEdit(); }
+        if (e.key === 'Escape') {
+          saved = true;
+          textEl.contentEditable = 'false';
+          confirmBtn.remove();
+          render();
+        }
       }, { once: true });
+      // blur 不再自动保存，只有点确认或 Enter 才保存
     });
   });
 
-  // Delete entry
+  // Delete entry — 放入垃圾桶
   document.querySelectorAll('.delete-entry').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const { id, proj } = btn.dataset;
-      if (!confirm('确认删除这条记录？')) return;
-      const oldEntries = [...state.entries[proj]];
+      const entry = state.entries[proj]?.find(e => e.id == id);
+      if (!entry) return;
+      // 放入垃圾桶
+      trash.unshift({ type: 'entry', proj, entry: { ...entry }, ts: Date.now() });
+      if (trash.length > 50) trash.pop();
       // Optimistic update
       state.entries[proj] = state.entries[proj].filter(e => e.id != id);
       render();
-      const { error } = await sb.from('entries').delete().eq('id', id);
-      if (error) { state.entries[proj] = oldEntries; render(); }
+      await sb.from('entries').delete().eq('id', id);
     });
   });
 }
@@ -2321,6 +2496,7 @@ async function saveReport(type, periodKey, content) {
 }
 
 async function autoGenerateReport(type) {
+  if (!isReportEnabled()) return; // ③ 开关关闭时不生成
   const now = new Date();
   const periodKey = type === 'week' ? getWeekKey(now) : getMonthKey(now);
   if (getSavedReport(type, periodKey)) return; // 已生成过
@@ -2329,7 +2505,11 @@ async function autoGenerateReport(type) {
   if (!prompt) return;
   try {
     const content = await callAiApi(prompt);
-    if (content) await saveReport(type, periodKey, content);
+    if (content) {
+      await saveReport(type, periodKey, content);
+      // ② 生成后推送通知
+      addReportNotification(type, periodKey, label);
+    }
   } catch (e) { console.warn('Auto report failed:', e); }
 }
 
@@ -2365,16 +2545,6 @@ function openReportModal(type, periodKey, periodLabel) {
   modal.classList.add('show');
 }
 
-document.getElementById('ai-btn').addEventListener('click', () => {
-  // header 按钮：显示本周报告
-  const now = new Date();
-  const periodKey = getWeekKey(now);
-  const dow = (now.getDay() + 6) % 7;
-  const mon = new Date(now); mon.setDate(now.getDate() - dow);
-  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-  const label = `${mon.getMonth()+1}/${mon.getDate()} ~ ${sun.getMonth()+1}/${sun.getDate()}`;
-  openReportModal('week', periodKey, label);
-});
 document.getElementById('ai-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('ai-modal'))
     document.getElementById('ai-modal').classList.remove('show');
@@ -2386,6 +2556,95 @@ document.getElementById('ai-copy-btn').addEventListener('click', () => {
     btn.textContent = '已复制';
     setTimeout(() => btn.textContent = '复制', 1500);
   });
+});
+
+// ② 通知系统
+function addReportNotification(type, periodKey, label) {
+  // 避免重复
+  if (notifications.find(n => n.type === type && n.periodKey === periodKey)) return;
+  notifications.unshift({ type, periodKey, label, read: false, ts: Date.now() });
+  saveNotifications();
+  renderNotifDot();
+}
+
+function renderNotifDot() {
+  const hasUnread = notifications.some(n => !n.read);
+  document.getElementById('notif-dot').classList.toggle('show', hasUnread);
+}
+
+function renderNotifPanel() {
+  const list = document.getElementById('notif-list');
+  const empty = document.getElementById('notif-empty');
+  list.innerHTML = '';
+  if (!notifications.length) {
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+  notifications.forEach((n, i) => {
+    const item = document.createElement('div');
+    item.className = 'notif-item';
+    item.innerHTML = `
+      <div class="notif-item-body">
+        <div class="notif-item-title">AI ${n.type === 'week' ? '周报' : '月报'} 已生成</div>
+        <div class="notif-item-sub">${n.label}</div>
+      </div>
+      <button class="notif-dismiss" data-idx="${i}" title="删除通知">×</button>
+    `;
+    item.querySelector('.notif-item-body').addEventListener('click', () => {
+      n.read = true;
+      saveNotifications();
+      renderNotifDot();
+      openReportModal(n.type, n.periodKey, n.label);
+      document.getElementById('notif-panel').classList.remove('show');
+    });
+    item.querySelector('.notif-dismiss').addEventListener('click', (e) => {
+      e.stopPropagation();
+      notifications.splice(i, 1);
+      saveNotifications();
+      renderNotifDot();
+      renderNotifPanel();
+    });
+    list.appendChild(item);
+  });
+}
+
+document.getElementById('notif-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const panel = document.getElementById('notif-panel');
+  const isOpen = panel.classList.toggle('show');
+  if (isOpen) {
+    renderNotifPanel();
+    // 标记全部已读
+    notifications.forEach(n => n.read = true);
+    saveNotifications();
+    renderNotifDot();
+  }
+});
+document.addEventListener('click', (e) => {
+  if (!document.getElementById('notif-panel').contains(e.target) &&
+      e.target !== document.getElementById('notif-btn')) {
+    document.getElementById('notif-panel').classList.remove('show');
+  }
+});
+
+// ③ 报告开关
+function renderReportToggleBtn() {
+  const btn = document.getElementById('report-toggle-btn');
+  if (!btn) return;
+  const on = isReportEnabled();
+  btn.textContent = `自动报告：${on ? '开' : '关'}`;
+  btn.className = `report-toggle-btn ${on ? 'on' : 'off'}`;
+}
+
+document.getElementById('report-toggle-btn').addEventListener('click', () => {
+  const on = isReportEnabled();
+  const msg = on
+    ? '关闭后将不再自动生成周/月报，已生成的报告不受影响。确认关闭？'
+    : '开启后将在每周日和每月最后一天自动生成报告。确认开启？';
+  if (!confirm(msg)) return;
+  setReportEnabled(!on);
+  renderReportToggleBtn();
 });
 
 // 日历日期点击后显示报告入口
@@ -2412,8 +2671,112 @@ function updateReportLinks(dateKey) {
   weekBtn.onclick = () => openReportModal('week', weekKey, weekLabel);
   monthBtn.onclick = () => openReportModal('month', monthKey, monthLabel);
 
+  renderReportToggleBtn();
   links.classList.add('show');
 }
+
+// ④ 垃圾桶弹窗
+function renderTrashModal() {
+  const content = document.getElementById('trash-content');
+  const empty = document.getElementById('trash-empty');
+  content.innerHTML = '';
+
+  if (!trash.length) {
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  // 分组：项目 / 任务
+  const projItems = trash.filter(t => t.type === 'project');
+  const entryItems = trash.filter(t => t.type === 'entry');
+
+  function renderGroup(items, title) {
+    if (!items.length) return;
+    const sec = document.createElement('div');
+    sec.innerHTML = `<div class="trash-section-title">${title}</div>`;
+    items.forEach((t, rawIdx) => {
+      const idx = trash.indexOf(t);
+      const item = document.createElement('div');
+      item.className = 'trash-item';
+      const label = t.type === 'project'
+        ? `项目「${t.proj}」（${t.entries.length} 条记录）`
+        : t.entry.text;
+      const sub = t.type === 'project'
+        ? `删除于 ${formatTime(t.ts)}`
+        : `${t.proj} · ${formatTime(t.ts)}`;
+      item.innerHTML = `
+        <div class="trash-item-body">
+          <div class="trash-item-text">${label}</div>
+          <div class="trash-item-sub">${sub}</div>
+        </div>
+        <button class="trash-restore-btn" data-idx="${idx}">撤回</button>
+        <button class="trash-perm-del-btn" data-idx="${idx}" title="永久删除">×</button>
+      `;
+      sec.appendChild(item);
+    });
+    content.appendChild(sec);
+  }
+
+  renderGroup(projItems, '已删除项目');
+  renderGroup(entryItems, '已删除任务');
+
+  // 撤回
+  content.querySelectorAll('.trash-restore-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const idx = Number(btn.dataset.idx);
+      const t = trash[idx];
+      if (!t) return;
+      trash.splice(idx, 1);
+
+      if (t.type === 'project') {
+        state.projects.push(t.proj);
+        state.entries[t.proj] = t.entries;
+        saveOrder();
+        render();
+        // 重新 insert 到 DB
+        for (const e of t.entries) {
+          const { data } = await sb.from('entries')
+            .insert({ project: t.proj, text: e.text, status: e.status, ts: e.ts, orig_ts: e.origTs || e.ts })
+            .select().single();
+          if (data) e.id = data.id;
+        }
+      } else {
+        if (!state.entries[t.proj]) state.entries[t.proj] = [];
+        state.entries[t.proj].push(t.entry);
+        state.entries[t.proj].sort((a, b) => (a.origTs || a.ts) - (b.origTs || b.ts));
+        render();
+        const e = t.entry;
+        const { data } = await sb.from('entries')
+          .insert({ project: t.proj, text: e.text, status: e.status, ts: e.ts, orig_ts: e.origTs || e.ts })
+          .select().single();
+        if (data) {
+          const restored = state.entries[t.proj].find(x => x.id === e.id);
+          if (restored) restored.id = data.id;
+        }
+      }
+      renderTrashModal();
+    });
+  });
+
+  // 永久删除（仅从垃圾桶移除，DB 已删）
+  content.querySelectorAll('.trash-perm-del-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = Number(btn.dataset.idx);
+      trash.splice(idx, 1);
+      renderTrashModal();
+    });
+  });
+}
+
+document.getElementById('trash-btn').addEventListener('click', () => {
+  renderTrashModal();
+  document.getElementById('trash-modal').classList.add('show');
+});
+document.getElementById('trash-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('trash-modal'))
+    document.getElementById('trash-modal').classList.remove('show');
+});
 </script>
 </body>
 </html>

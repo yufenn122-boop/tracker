@@ -1891,23 +1891,22 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/tracker/sw.js');
 }
 
-// ── 手机端左滑退出二次确认 ──
+// ── 手机端左滑/右滑退出二次确认 ──
+// 原理：pushState 插入一条假历史，系统左滑会触发 popstate 而非直接关闭
 (function() {
-  if (!('ontouchstart' in window)) return;
-  let touchStartX = 0, touchStartY = 0;
-  document.addEventListener('touchstart', e => {
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-  }, { passive: true });
-  document.addEventListener('touchend', e => {
-    const dx = e.changedTouches[0].clientX - touchStartX;
-    const dy = Math.abs(e.changedTouches[0].clientY - touchStartY);
-    // 从左边缘（<30px）右滑超过80px，且垂直偏移小于60px
-    if (touchStartX < 30 && dx > 80 && dy < 60) {
-      e.preventDefault();
-      if (confirm('确认退出页面？')) history.back();
+  // 插入假历史条目，使浏览器"有上一页"可以返回
+  history.pushState({ guardPage: true }, '');
+
+  window.addEventListener('popstate', function(e) {
+    // 用户触发了后退（左滑/手势/返回键）
+    if (confirm('确认退出页面？')) {
+      // 确认退出：再 back 一次真正离开
+      history.back();
+    } else {
+      // 取消：重新插入假历史，保持拦截
+      history.pushState({ guardPage: true }, '');
     }
-  }, { passive: false });
+  });
 })();
 
 // ── Calendar ──

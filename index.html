@@ -1893,33 +1893,22 @@ if ('serviceWorker' in navigator) {
 
 // ── 手机端左滑/右滑退出二次确认 ──
 (function() {
-  // 在当前页后面插一条守卫记录，当前停在守卫页
+  // 初始状态：replaceState 标记基础页，pushState 推入守卫页
+  history.replaceState({ guard: false }, '');
   history.pushState({ guard: true }, '');
 
-  let confirming = false;
-
   window.addEventListener('popstate', function(e) {
-    if (confirming) return;
-
-    if (e.state && e.state.guard) {
-      // 前进回了守卫页（右滑），什么都不做
-      return;
+    if (e.state && e.state.guard === false) {
+      // 退到了基础页，立刻 forward 回守卫页，再弹确认
+      history.forward();
+      setTimeout(function() {
+        if (confirm('确认退出页面？')) {
+          // 用户确认：移除 popstate 监听，直接后退两步离开
+          window.removeEventListener('popstate', arguments.callee);
+          history.go(-2);
+        }
+      }, 50);
     }
-
-    // 后退离开了守卫页，立即推回守卫页，再弹确认
-    history.pushState({ guard: true }, '');
-
-    confirming = true;
-    // 用 setTimeout 让浏览器先完成历史操作，再弹框
-    setTimeout(function() {
-      const leave = confirm('确认退出页面？');
-      confirming = false;
-      if (leave) {
-        // 连续后退两步：守卫页 → 基础页 → 真正离开
-        history.go(-2);
-      }
-      // 取消：已经在守卫页了，什么都不用做
-    }, 0);
   });
 })();
 

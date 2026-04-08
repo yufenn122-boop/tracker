@@ -1892,19 +1892,26 @@ if ('serviceWorker' in navigator) {
 }
 
 // ── 手机端左滑/右滑退出二次确认 ──
-// 原理：pushState 插入一条假历史，系统左滑会触发 popstate 而非直接关闭
+// 原理：在历史栈里维护 index 0（基础页）和 index 1（守卫页）
+// 后退到 index 0 → 弹确认；前进到 index 1 → 静默补回守卫页
 (function() {
-  // 插入假历史条目，使浏览器"有上一页"可以返回
-  history.pushState({ guardPage: true }, '');
+  // 初始化：基础页 index=0，守卫页 index=1
+  history.replaceState({ guardIndex: 0 }, '');
+  history.pushState({ guardIndex: 1 }, '');
 
   window.addEventListener('popstate', function(e) {
-    // 用户触发了后退（左滑/手势/返回键）
-    if (confirm('确认退出页面？')) {
-      // 确认退出：再 back 一次真正离开
-      history.back();
-    } else {
-      // 取消：重新插入假历史，保持拦截
-      history.pushState({ guardPage: true }, '');
+    const idx = e.state && e.state.guardIndex;
+    if (idx === 0) {
+      // 后退到基础页 → 弹确认
+      if (confirm('确认退出页面？')) {
+        history.back(); // 真正离开
+      } else {
+        // 取消：重新推入守卫页
+        history.pushState({ guardIndex: 1 }, '');
+      }
+    } else if (idx === 1) {
+      // 前进到守卫页（右滑）→ 再推一层守卫页，保持拦截
+      history.pushState({ guardIndex: 1 }, '');
     }
   });
 })();

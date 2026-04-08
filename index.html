@@ -831,23 +831,26 @@
     margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;
   }
 
-  /* 报告开关 */
-  .report-toggle-btn {
-    border: 1px solid #d0d7e3; background: white; color: #555;
-    border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer;
+  /* 报告开关 — 滑动 toggle */
+  .report-toggle-wrap {
+    display: inline-flex; align-items: center; gap: 6px;
+    cursor: pointer; user-select: none;
   }
-  .report-toggle-btn.on { border-color: #27ae60; color: #27ae60; }
-  .report-toggle-btn.off { border-color: #aaa; color: #aaa; }
-  .report-toggle-btn:hover { background: #f0f2f5; }
+  .report-toggle-track {
+    width: 36px; height: 20px; border-radius: 10px;
+    background: #ccc; position: relative; transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .report-toggle-wrap.on .report-toggle-track { background: #27ae60; }
+  .report-toggle-thumb {
+    position: absolute; top: 2px; left: 2px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: white; transition: left 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  .report-toggle-wrap.on .report-toggle-thumb { left: 18px; }
+  .report-toggle-label { font-size: 12px; color: #555; }
 
-  /* 编辑确认按钮 */
-  .edit-confirm-btn {
-    position: absolute; bottom: -28px; right: 0;
-    background: #4f8ef7; color: white; border: none;
-    border-radius: 5px; padding: 3px 10px; font-size: 11px;
-    cursor: pointer; z-index: 10; white-space: nowrap;
-  }
-  .edit-confirm-btn:hover { background: #3a7de0; }
   .entry-body { position: relative; }
 
   /* 垃圾桶弹窗 */
@@ -912,9 +915,9 @@
   <button id="today-btn" title="今日完成">今</button>
   <div style="flex:1"></div>
   <button class="header-btn" id="overdue-btn" style="background:#e74c3c;display:none">⏰ 超时</button>
-  <button id="search-toggle" title="搜索">🔍</button>
-  <button id="notif-btn" title="AI 报告通知">✉️<span id="notif-dot"></span></button>
-  <button id="trash-btn" title="回收站">🗑</button>
+  <button id="search-toggle" title="搜索"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+  <button id="notif-btn" title="AI 报告通知"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg><span id="notif-dot"></span></button>
+  <button id="trash-btn" title="回收站"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg></button>
   <button class="header-btn" id="export-btn">导出</button>
   <div class="header-row2">
     <input id="search-input" type="text" placeholder="搜索记录..." />
@@ -960,7 +963,10 @@
     <div id="report-links">
       <button class="report-link-btn" id="week-report-btn">📄 本周报告</button>
       <button class="report-link-btn" id="month-report-btn">📄 本月报告</button>
-      <button class="report-toggle-btn on" id="report-toggle-btn">自动报告：开</button>
+      <span class="report-toggle-wrap on" id="report-toggle-btn">
+        <span class="report-toggle-track"><span class="report-toggle-thumb"></span></span>
+        <span class="report-toggle-label">自动报告</span>
+      </span>
     </div>
   </div>
   <div class="freq-section">
@@ -1193,6 +1199,13 @@ function render() {
   const board = document.getElementById('board');
   const prevSelected = window._selectedProj || state.projects[0] || '';
 
+  // ⑥ 保存各列滚动位置，render 后恢复
+  const savedScrolls = {};
+  document.querySelectorAll('.col-entries').forEach(el => {
+    const id = el.id; // col-{proj}
+    if (el.scrollTop > 0) savedScrolls[id] = el.scrollTop;
+  });
+
   board.innerHTML = '';
 
   const isMobile = window.innerWidth <= 600;
@@ -1368,7 +1381,12 @@ function render() {
 
     if (!isMobile || openCols.has(proj)) {
       const colEntries = col.querySelector('.col-entries');
-      colEntries.scrollTop = 0; // 显示最早添加的任务（顶部）
+      const savedPos = savedScrolls[`col-${proj}`];
+      if (savedPos !== undefined) {
+        // 恢复之前的滚动位置
+        requestAnimationFrame(() => { colEntries.scrollTop = savedPos; });
+      }
+      // 若没有保存位置，保持默认（顶部），不强制 scrollTop = 0
     }
   });
 
@@ -1420,7 +1438,7 @@ function render() {
     });
   });
 
-  // Mobile: toggle open/close on header click — ⑥ 自动折叠上一个自动展开的列
+  // Mobile: toggle open/close on header click
   document.querySelectorAll('.col-header').forEach(header => {
     header.addEventListener('click', (e) => {
       if (e.target.classList.contains('delete-col')) return;
@@ -1430,6 +1448,10 @@ function render() {
       const proj = col.querySelector('.col-title').textContent;
       const topBefore = col.getBoundingClientRect().top;
       const wasOpen = openCols.has(proj);
+
+      // ⑤ 点击项目条时，底部下拉同步跳转到该项目
+      window._selectedProj = proj;
+      renderProjDropdown(proj);
 
       if (!wasOpen) {
         // 展开：若有上一个自动展开的列且用户未手动折叠过，自动折叠它
@@ -1531,7 +1553,7 @@ function render() {
     });
   });
 
-  // Edit entry — ⑤ 加确认按钮
+  // Edit entry
   document.querySelectorAll('.edit-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1549,19 +1571,12 @@ function render() {
       sel.removeAllRanges();
       sel.addRange(range);
 
-      // 添加确认按钮
-      const confirmBtn = document.createElement('button');
-      confirmBtn.className = 'edit-confirm-btn';
-      confirmBtn.textContent = '✓ 确认';
-      entryEl.querySelector('.entry-body').appendChild(confirmBtn);
-
       let saved = false;
       async function saveEdit() {
         if (saved) return;
         saved = true;
         const newText = textEl.innerText.trim();
         textEl.contentEditable = 'false';
-        confirmBtn.remove();
         if (newText && newText !== state.entries[proj][Number(idx)].text) {
           const oldText = state.entries[proj][Number(idx)].text;
           state.entries[proj][Number(idx)].text = newText;
@@ -1573,17 +1588,16 @@ function render() {
         }
       }
 
-      confirmBtn.addEventListener('click', (e) => { e.stopPropagation(); saveEdit(); });
+      textEl.addEventListener('blur', saveEdit, { once: true });
       textEl.addEventListener('keydown', e => {
-        if (e.key === 'Enter') { e.preventDefault(); saveEdit(); }
+        if (e.key === 'Enter') { e.preventDefault(); textEl.blur(); }
         if (e.key === 'Escape') {
           saved = true;
           textEl.contentEditable = 'false';
-          confirmBtn.remove();
+          textEl.removeEventListener('blur', saveEdit);
           render();
         }
       }, { once: true });
-      // blur 不再自动保存，只有点确认或 Enter 才保存
     });
   });
 
@@ -1873,10 +1887,28 @@ function renderOverdueModal() {
     });
   });
 }
-// Init — called after auth
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/tracker/sw.js');
 }
+
+// ── 手机端左滑退出二次确认 ──
+(function() {
+  if (!('ontouchstart' in window)) return;
+  let touchStartX = 0, touchStartY = 0;
+  document.addEventListener('touchstart', e => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+  document.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = Math.abs(e.changedTouches[0].clientY - touchStartY);
+    // 从左边缘（<30px）右滑超过80px，且垂直偏移小于60px
+    if (touchStartX < 30 && dx > 80 && dy < 60) {
+      e.preventDefault();
+      if (confirm('确认退出页面？')) history.back();
+    }
+  }, { passive: false });
+})();
 
 // ── Calendar ──
 let currentView = 'board';
@@ -2630,11 +2662,11 @@ document.addEventListener('click', (e) => {
 
 // ③ 报告开关
 function renderReportToggleBtn() {
-  const btn = document.getElementById('report-toggle-btn');
-  if (!btn) return;
+  const wrap = document.getElementById('report-toggle-btn');
+  if (!wrap) return;
   const on = isReportEnabled();
-  btn.textContent = `自动报告：${on ? '开' : '关'}`;
-  btn.className = `report-toggle-btn ${on ? 'on' : 'off'}`;
+  wrap.classList.toggle('on', on);
+  wrap.classList.toggle('off', !on);
 }
 
 document.getElementById('report-toggle-btn').addEventListener('click', () => {

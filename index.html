@@ -9,7 +9,7 @@
 <link rel="apple-touch-icon" href="/tracker/icon-192.svg">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { max-width: 100vw; overflow-x: hidden; }
+  html, body { max-width: 100vw; overflow-x: hidden; overscroll-behavior-x: none; }
   body { font-family: 'Microsoft YaHei', sans-serif; background: #f0f2f5; min-height: 100vh; display: flex; flex-direction: column; }
 
   header {
@@ -897,6 +897,27 @@
   .trash-perm-del-btn:hover { color: #e74c3c; }
   #trash-empty { color: #aaa; font-size: 13px; text-align: center; padding: 16px 0; }
   @media (max-width: 600px) { #trash-box { width: calc(100vw - 32px); } }
+
+  /* 退出确认遮罩 */
+  #exit-confirm {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5); z-index: 9999;
+    align-items: flex-end; justify-content: center;
+  }
+  #exit-confirm.show { display: flex; }
+  #exit-confirm-box {
+    background: white; border-radius: 16px 16px 0 0;
+    padding: 24px 20px 32px; width: 100%;
+    text-align: center;
+  }
+  #exit-confirm-box p { font-size: 15px; color: #1a1a2e; margin-bottom: 20px; }
+  #exit-confirm-box .exit-btns { display: flex; gap: 10px; }
+  #exit-confirm-box .exit-btns button {
+    flex: 1; padding: 12px 0; border-radius: 10px;
+    border: none; font-size: 15px; cursor: pointer;
+  }
+  #exit-cancel-btn { background: #f0f2f5; color: #333; }
+  #exit-ok-btn { background: #e74c3c; color: white; }
 </style>
 </head>
 <body>
@@ -1027,6 +1048,16 @@
   </div>
 </div>
 
+<div id="exit-confirm">
+  <div id="exit-confirm-box">
+    <p>确认退出页面？</p>
+    <div class="exit-btns">
+      <button id="exit-cancel-btn">取消</button>
+      <button id="exit-ok-btn">退出</button>
+    </div>
+  </div>
+</div>
+
 <div id="date-modal">
   <div id="date-box">
     <h2>自定义时间范围</h2>
@@ -1056,19 +1087,7 @@ const SUPABASE_URL = 'https://rokrwejqxrpswpkzhawx.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_OpTUNdpvmVR93h-i6XB3pQ_TrWR8ikx';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const PASSWORD_HASH = '2b7d5805cbee2a961ed2633e809f05c23e2146bd4cd222959f3abfa04f2e806d';
-
-// SHA-256 fallback for non-secure contexts
-async function simpleHash(str) {
-  if (window.crypto && crypto.subtle) {
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-  }
-  // djb2-based fallback (not cryptographically secure, only used when SubtleCrypto unavailable)
-  let h = 5381;
-  for (let i = 0; i < str.length; i++) h = ((h << 5) + h) ^ str.charCodeAt(i);
-  return (h >>> 0).toString(16).padStart(8, '0');
-}
+const AUTH_EMAIL = '2777641741@qq.com';
 
 // Auth
 (function() {
@@ -1080,14 +1099,20 @@ async function simpleHash(str) {
   overlay.style.display = 'flex';
 
   async function tryLogin() {
-    const hashHex = await simpleHash(input.value);
-    if (hashHex === PASSWORD_HASH) {
-      overlay.style.display = 'none';
-      loadFromDB();
-    } else {
+    btn.disabled = true;
+    error.textContent = '';
+    const { data, error: authError } = await sb.auth.signInWithPassword({
+      email: AUTH_EMAIL,
+      password: input.value,
+    });
+    btn.disabled = false;
+    if (authError) {
       error.textContent = '密码错误';
       input.value = '';
       input.focus();
+    } else {
+      overlay.style.display = 'none';
+      loadFromDB();
     }
   }
 
@@ -1891,24 +1916,37 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/tracker/sw.js');
 }
 
-// ── 手机端左滑/右滑退出二次确认 ──
+// ── 手机端左滑退出二次确认（自定义遮罩，不依赖 history API）──
 (function() {
-  // 初始状态：replaceState 标记基础页，pushState 推入守卫页
-  history.replaceState({ guard: false }, '');
-  history.pushState({ guard: true }, '');
+  let touchStartX = 0, touchStartY = 0;
+  const overlay = document.getElementById('exit-confirm');
 
-  window.addEventListener('popstate', function(e) {
-    if (e.state && e.state.guard === false) {
-      // 退到了基础页，立刻 forward 回守卫页，再弹确认
-      history.forward();
-      setTimeout(function() {
-        if (confirm('确认退出页面？')) {
-          // 用户确认：移除 popstate 监听，直接后退两步离开
-          window.removeEventListener('popstate', arguments.callee);
-          history.go(-2);
-        }
-      }, 50);
+  document.addEventListener('touchstart', function(e) {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+
+  document.addEventListener('touchend', function(e) {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = Math.abs(e.changedTouches[0].clientY - touchStartY);
+    // 从右边缘（>屏幕宽度-30px）左滑超过 60px，且垂直偏移小于 60px
+    const rightEdge = window.innerWidth - 30;
+    if (touchStartX > rightEdge && dx < -60 && dy < 60) {
+      overlay.classList.add('show');
     }
+  }, { passive: true });
+
+  document.getElementById('exit-cancel-btn').addEventListener('click', function() {
+    overlay.classList.remove('show');
+  });
+
+  document.getElementById('exit-ok-btn').addEventListener('click', function() {
+    overlay.classList.remove('show');
+    history.back();
+  });
+
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) overlay.classList.remove('show');
   });
 })();
 

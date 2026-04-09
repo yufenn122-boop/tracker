@@ -9,7 +9,7 @@
 <link rel="apple-touch-icon" href="/tracker/icon-192.svg">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { max-width: 100vw; overflow-x: hidden; overscroll-behavior-x: none; }
+  html, body { max-width: 100vw; overflow-x: hidden; }
   body { font-family: 'Microsoft YaHei', sans-serif; background: #f0f2f5; min-height: 100vh; display: flex; flex-direction: column; }
 
   header {
@@ -897,27 +897,6 @@
   .trash-perm-del-btn:hover { color: #e74c3c; }
   #trash-empty { color: #aaa; font-size: 13px; text-align: center; padding: 16px 0; }
   @media (max-width: 600px) { #trash-box { width: calc(100vw - 32px); } }
-
-  /* 退出确认遮罩 */
-  #exit-confirm {
-    display: none; position: fixed; inset: 0;
-    background: rgba(0,0,0,0.5); z-index: 9999;
-    align-items: flex-end; justify-content: center;
-  }
-  #exit-confirm.show { display: flex; }
-  #exit-confirm-box {
-    background: white; border-radius: 16px 16px 0 0;
-    padding: 24px 20px 32px; width: 100%;
-    text-align: center;
-  }
-  #exit-confirm-box p { font-size: 15px; color: #1a1a2e; margin-bottom: 20px; }
-  #exit-confirm-box .exit-btns { display: flex; gap: 10px; }
-  #exit-confirm-box .exit-btns button {
-    flex: 1; padding: 12px 0; border-radius: 10px;
-    border: none; font-size: 15px; cursor: pointer;
-  }
-  #exit-cancel-btn { background: #f0f2f5; color: #333; }
-  #exit-ok-btn { background: #e74c3c; color: white; }
 </style>
 </head>
 <body>
@@ -1045,16 +1024,6 @@
     <h2>🗑 回收站</h2>
     <div id="trash-content"></div>
     <div id="trash-empty">回收站为空</div>
-  </div>
-</div>
-
-<div id="exit-confirm">
-  <div id="exit-confirm-box">
-    <p>确认退出页面？</p>
-    <div class="exit-btns">
-      <button id="exit-cancel-btn">取消</button>
-      <button id="exit-ok-btn">退出</button>
-    </div>
   </div>
 </div>
 
@@ -1916,40 +1885,6 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/tracker/sw.js');
 }
 
-// ── 手机端左滑退出二次确认（自定义遮罩，不依赖 history API）──
-(function() {
-  let touchStartX = 0, touchStartY = 0;
-  const overlay = document.getElementById('exit-confirm');
-
-  document.addEventListener('touchstart', function(e) {
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-  }, { passive: true });
-
-  document.addEventListener('touchend', function(e) {
-    const dx = e.changedTouches[0].clientX - touchStartX;
-    const dy = Math.abs(e.changedTouches[0].clientY - touchStartY);
-    // 从右边缘（>屏幕宽度-30px）左滑超过 60px，且垂直偏移小于 60px
-    const rightEdge = window.innerWidth - 30;
-    if (touchStartX > rightEdge && dx < -60 && dy < 60) {
-      overlay.classList.add('show');
-    }
-  }, { passive: true });
-
-  document.getElementById('exit-cancel-btn').addEventListener('click', function() {
-    overlay.classList.remove('show');
-  });
-
-  document.getElementById('exit-ok-btn').addEventListener('click', function() {
-    overlay.classList.remove('show');
-    history.back();
-  });
-
-  overlay.addEventListener('click', function(e) {
-    if (e.target === overlay) overlay.classList.remove('show');
-  });
-})();
-
 // ── Calendar ──
 let currentView = 'board';
 let calYear = new Date().getFullYear();
@@ -2465,8 +2400,8 @@ document.getElementById('today-modal').addEventListener('click', e => {
 });
 
 // ── AI 报告 ──
-const OPENAI_BASE_URL = 'https://code.ppchat.vip/v1';
-const OPENAI_API_KEY = 'sk-3n7CvylU5VAjPZNmycGs1SeNOoJOmbBB4Z1nq11sBzli7Mfq';
+const OPENAI_BASE_URL = 'https://new.aicode.us.com/v1';
+const OPENAI_API_KEY = 'sk-BOOyfa2d7PdM8wBM83F27d0f3eAc4bFaAa8f95901d8b4b9f';
 const REPORT_WEEK_PROJ = '__report_week__';
 const REPORT_MONTH_PROJ = '__report_month__';
 

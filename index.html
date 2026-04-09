@@ -238,6 +238,7 @@
     cursor: pointer; font-size: 18px; padding: 0 4px; line-height: 1;
   }
   .add-task-btn:hover { color: #3a7de0; }
+  .col-header-actions { display: flex; align-items: center; gap: 2px; }
 
   /* current progress preview — hidden on desktop */
   .col-preview { display: none; }
@@ -1316,8 +1317,10 @@ function render() {
           <span class="col-title">${proj}</span>
           ${countLabel ? `<span class="col-count">${countLabel}</span>` : ''}
         </div>
-        <button class="add-task-btn" data-proj="${proj}" title="新增任务">+</button>
-        <button class="delete-col" data-proj="${proj}" title="删除项目">×</button>
+        <div class="col-header-actions">
+          <button class="add-task-btn" data-proj="${proj}" title="新增任务">+</button>
+          <button class="delete-col" data-proj="${proj}" title="删除项目">×</button>
+        </div>
       </div>
       <div class="col-preview">${previewHtml}</div>
       <div class="col-entries" id="col-${proj}">${entriesHtml}</div>

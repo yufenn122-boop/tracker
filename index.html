@@ -233,9 +233,11 @@
     line-height: 1;
   }
   .delete-col:hover { color: #e74c3c; }
-  .col-header.col-active .delete-col { color: #4f8ef7; font-size: 18px; visibility: hidden; position: relative; }
-  .col-header.col-active .delete-col::after { content: '+'; visibility: visible; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
-  .col-header.col-active .delete-col:hover { color: #3a7de0; background: #eef3ff; }
+  .add-task-btn {
+    background: none; border: none; color: #4f8ef7;
+    cursor: pointer; font-size: 18px; padding: 0 4px; line-height: 1;
+  }
+  .add-task-btn:hover { color: #3a7de0; }
 
   /* current progress preview — hidden on desktop */
   .col-preview { display: none; }
@@ -1117,7 +1119,6 @@ const DEFAULTS = ['家教', '督学群', '单片机', '自媒体', '雪花酥'];
 let state = { projects: [], entries: {} };
 const openCols = new Set();
 let lastAutoOpenedCol = null; // ⑥ 记录最近自动展开的列
-let activeColProj = null; // 记录当前点击激活的列（× 变 +）
 
 // ④ 垃圾桶：存已删除的项目/任务，仅内存，刷新后清空
 const trash = []; // { type:'entry'|'project', proj, entry?, entries?, ts }
@@ -1315,7 +1316,8 @@ function render() {
           <span class="col-title">${proj}</span>
           ${countLabel ? `<span class="col-count">${countLabel}</span>` : ''}
         </div>
-        <button class="delete-col" data-proj="${proj}">${activeColProj === proj ? '+' : '×'}</button>
+        <button class="add-task-btn" data-proj="${proj}" title="新增任务">+</button>
+        <button class="delete-col" data-proj="${proj}" title="删除项目">×</button>
       </div>
       <div class="col-preview">${previewHtml}</div>
       <div class="col-entries" id="col-${proj}">${entriesHtml}</div>
@@ -1410,18 +1412,6 @@ function render() {
       }
       // 若没有保存位置，保持默认（顶部），不强制 scrollTop = 0
     }
-  });
-
-  // 点击列头 → delete-col 切换为 + 号
-  document.querySelectorAll('.col-header').forEach(header => {
-    header.addEventListener('click', (e) => {
-      if (e.target.classList.contains('delete-col') || e.target.closest('.delete-col')) return;
-      if (e.target.classList.contains('col-title') || e.target.closest('.col-title')) return;
-      if (window.matchMedia('(max-width: 600px)').matches) return;
-      const proj = header.closest('.column').querySelector('.col-title').textContent;
-      activeColProj = activeColProj === proj ? null : proj;
-      render();
-    });
   });
 
   // 内联新增输入框事件
@@ -1565,36 +1555,7 @@ function render() {
     });
   });
 
-  // Delete column — 放入垃圾桶（active 状态下变为新建任务）
-  document.querySelectorAll('.delete-col').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const proj = btn.dataset.proj;
-      // + 状态：触发新增任务
-      if (activeColProj === proj) {
-        activeColProj = null;
-        render();
-        const col = document.querySelector(`#col-${proj}`)?.closest('.column');
-        if (col) {
-          const addRow = col.querySelector('.col-add-row');
-          if (addRow) { addRow.classList.add('show'); addRow.querySelector('.col-add-input').focus(); }
-        }
-        return;
-      }
-      if (!confirm(`删除项目「${proj}」？可在回收站撤回。`)) return;
-      const savedEntries = (state.entries[proj] || []).map(e => ({ ...e }));
-      // 放入垃圾桶
-      trash.unshift({ type: 'project', proj, entries: savedEntries, ts: Date.now() });
-      if (trash.length > 50) trash.pop();
-      // Optimistic update
-      state.projects = state.projects.filter(p => p !== proj);
-      delete state.entries[proj];
-      openCols.delete(proj);
-      render();
-      // 真正删除 DB（垃圾桶里保留数据，撤回时重新 insert）
-      await sb.from('entries').delete().eq('project', proj);
-    });
-  });
+  // Delete column 和 + 新增任务 — 事件委托移至全局，此处留空
 
   // Toggle status
   document.querySelectorAll('.status-btn').forEach(btn => {
@@ -1701,11 +1662,33 @@ function render() {
 }
 
 
-// 点击列头外部取消 active（全局只绑一次）
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('.col-header') && activeColProj !== null) {
-    activeColProj = null;
+// 点击列头按钮（事件委托，全局只绑一次）
+document.getElementById('board').addEventListener('click', async (e) => {
+  // + 新增任务按钮
+  const addBtn = e.target.closest('.add-task-btn');
+  if (addBtn) {
+    e.stopPropagation();
+    const proj = addBtn.dataset.proj;
+    const addRow = document.getElementById(`add-row-${proj}`);
+    if (addRow) { addRow.classList.add('show'); addRow.querySelector('.col-add-input').focus(); }
+    return;
+  }
+
+  // × 删除项目按钮
+  const delBtn = e.target.closest('.delete-col');
+  if (delBtn) {
+    e.stopPropagation();
+    const proj = delBtn.dataset.proj;
+    if (!confirm(`删除项目「${proj}」？可在回收站撤回。`)) return;
+    const savedEntries = (state.entries[proj] || []).map(e => ({ ...e }));
+    trash.unshift({ type: 'project', proj, entries: savedEntries, ts: Date.now() });
+    if (trash.length > 50) trash.pop();
+    state.projects = state.projects.filter(p => p !== proj);
+    delete state.entries[proj];
+    openCols.delete(proj);
     render();
+    await sb.from('entries').delete().eq('project', proj);
+    return;
   }
 });
 

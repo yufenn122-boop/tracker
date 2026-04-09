@@ -1117,6 +1117,7 @@ const DEFAULTS = ['家教', '督学群', '单片机', '自媒体', '雪花酥'];
 let state = { projects: [], entries: {} };
 const openCols = new Set();
 let lastAutoOpenedCol = null; // ⑥ 记录最近自动展开的列
+let activeColProj = null; // 记录当前点击激活的列（× 变 +）
 
 // ④ 垃圾桶：存已删除的项目/任务，仅内存，刷新后清空
 const trash = []; // { type:'entry'|'project', proj, entry?, entries?, ts }
@@ -1314,7 +1315,7 @@ function render() {
           <span class="col-title">${proj}</span>
           ${countLabel ? `<span class="col-count">${countLabel}</span>` : ''}
         </div>
-        <button class="delete-col" data-proj="${proj}">×</button>
+        <button class="delete-col" data-proj="${proj}">${activeColProj === proj ? '+' : '×'}</button>
       </div>
       <div class="col-preview">${previewHtml}</div>
       <div class="col-entries" id="col-${proj}">${entriesHtml}</div>
@@ -1416,21 +1417,12 @@ function render() {
     header.addEventListener('click', (e) => {
       if (e.target.classList.contains('delete-col') || e.target.closest('.delete-col')) return;
       if (e.target.classList.contains('col-title') || e.target.closest('.col-title')) return;
-      if (window.matchMedia('(max-width: 600px)').matches) return; // mobile handled separately
-      const col = header.closest('.column');
-      const isActive = header.classList.contains('col-active');
-      // 关闭其他所有 active
-      document.querySelectorAll('.col-header.col-active').forEach(h => h.classList.remove('col-active'));
-      if (!isActive) header.classList.add('col-active');
+      if (window.matchMedia('(max-width: 600px)').matches) return;
+      const proj = header.closest('.column').querySelector('.col-title').textContent;
+      activeColProj = activeColProj === proj ? null : proj;
+      render();
     });
   });
-
-  // 点击页面其他地方取消 active
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.col-header')) {
-      document.querySelectorAll('.col-header.col-active').forEach(h => h.classList.remove('col-active'));
-    }
-  }, true);
 
   // 内联新增输入框事件
   document.querySelectorAll('.col-add-row').forEach(addRow => {
@@ -1578,13 +1570,15 @@ function render() {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const proj = btn.dataset.proj;
-      const header = btn.closest('.col-header');
-      // active 状态：触发新增任务
-      if (header.classList.contains('col-active')) {
-        header.classList.remove('col-active');
-        const col = header.closest('.column');
-        const addRow = col.querySelector('.col-add-row');
-        if (addRow) { addRow.classList.add('show'); addRow.querySelector('.col-add-input').focus(); }
+      // + 状态：触发新增任务
+      if (activeColProj === proj) {
+        activeColProj = null;
+        render();
+        const col = document.querySelector(`#col-${proj}`)?.closest('.column');
+        if (col) {
+          const addRow = col.querySelector('.col-add-row');
+          if (addRow) { addRow.classList.add('show'); addRow.querySelector('.col-add-input').focus(); }
+        }
         return;
       }
       if (!confirm(`删除项目「${proj}」？可在回收站撤回。`)) return;
@@ -1706,6 +1700,14 @@ function render() {
   });
 }
 
+
+// 点击列头外部取消 active（全局只绑一次）
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.col-header') && activeColProj !== null) {
+    activeColProj = null;
+    render();
+  }
+});
 
 document.getElementById('export-btn').addEventListener('click', () => {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });

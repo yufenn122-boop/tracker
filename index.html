@@ -1408,7 +1408,7 @@ function render() {
     }
   });
 
-  // 双击列头（非 col-title）→ 展开内联新增输入框
+  // 双击列头 → 展开内联新增输入框
   document.querySelectorAll('.col-header').forEach(header => {
     header.addEventListener('dblclick', (e) => {
       if (e.target.classList.contains('col-title') || e.target.closest('.col-title')) return;
@@ -1676,6 +1676,7 @@ function render() {
       const { id, proj } = btn.dataset;
       const entry = state.entries[proj]?.find(e => e.id == id);
       if (!entry) return;
+      if (!confirm(`删除「${entry.text.slice(0,20)}」？可在回收站撤回。`)) return;
       // 放入垃圾桶
       trash.unshift({ type: 'entry', proj, entry: { ...entry }, ts: Date.now() });
       if (trash.length > 50) trash.pop();
@@ -2308,10 +2309,11 @@ document.getElementById('cal-toggle-btn').addEventListener('click', () => {
   document.getElementById('board').classList.toggle('hidden', currentView === 'calendar');
   document.getElementById('calendar-view').classList.toggle('active', currentView === 'calendar');
   document.getElementById('cal-toggle-btn').textContent = currentView === 'calendar' ? '📅 日历' : '📋 看板';
-  // 看板页：新建按钮 + 搜索；日历页：导出按钮，隐藏搜索
+  // 看板页：新建按钮 + 搜索；日历页：导出按钮，隐藏搜索和回收站
   document.getElementById('board-new-btn').style.display = currentView === 'calendar' ? 'none' : '';
   document.getElementById('export-btn').style.display = currentView === 'calendar' ? '' : 'none';
   document.getElementById('search-toggle').style.display = currentView === 'calendar' ? 'none' : '';
+  document.getElementById('trash-btn').style.display = currentView === 'calendar' ? 'none' : '';
   // ① 日历视图隐藏搜索相关元素
   const searchRow = document.querySelector('.header-row2');
   if (currentView === 'calendar') {

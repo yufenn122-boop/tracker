@@ -233,6 +233,9 @@
     line-height: 1;
   }
   .delete-col:hover { color: #e74c3c; }
+  .col-header.col-active .delete-col { color: #4f8ef7; font-size: 18px; visibility: hidden; position: relative; }
+  .col-header.col-active .delete-col::after { content: '+'; visibility: visible; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+  .col-header.col-active .delete-col:hover { color: #3a7de0; background: #eef3ff; }
 
   /* current progress preview — hidden on desktop */
   .col-preview { display: none; }
@@ -1408,20 +1411,26 @@ function render() {
     }
   });
 
-  // 双击列头 → 展开内联新增输入框
+  // 点击列头 → delete-col 切换为 + 号
   document.querySelectorAll('.col-header').forEach(header => {
-    header.addEventListener('dblclick', (e) => {
+    header.addEventListener('click', (e) => {
+      if (e.target.classList.contains('delete-col') || e.target.closest('.delete-col')) return;
       if (e.target.classList.contains('col-title') || e.target.closest('.col-title')) return;
-      if (e.target.classList.contains('delete-col')) return;
+      if (window.matchMedia('(max-width: 600px)').matches) return; // mobile handled separately
       const col = header.closest('.column');
-      const proj = col.querySelector('.col-title').textContent;
-      const addRow = col.querySelector('.col-add-row');
-      if (!addRow) return;
-      addRow.classList.add('show');
-      const input = addRow.querySelector('.col-add-input');
-      input.focus();
+      const isActive = header.classList.contains('col-active');
+      // 关闭其他所有 active
+      document.querySelectorAll('.col-header.col-active').forEach(h => h.classList.remove('col-active'));
+      if (!isActive) header.classList.add('col-active');
     });
   });
+
+  // 点击页面其他地方取消 active
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.col-header')) {
+      document.querySelectorAll('.col-header.col-active').forEach(h => h.classList.remove('col-active'));
+    }
+  }, true);
 
   // 内联新增输入框事件
   document.querySelectorAll('.col-add-row').forEach(addRow => {
@@ -1564,11 +1573,20 @@ function render() {
     });
   });
 
-  // Delete column — 放入垃圾桶
+  // Delete column — 放入垃圾桶（active 状态下变为新建任务）
   document.querySelectorAll('.delete-col').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const proj = btn.dataset.proj;
+      const header = btn.closest('.col-header');
+      // active 状态：触发新增任务
+      if (header.classList.contains('col-active')) {
+        header.classList.remove('col-active');
+        const col = header.closest('.column');
+        const addRow = col.querySelector('.col-add-row');
+        if (addRow) { addRow.classList.add('show'); addRow.querySelector('.col-add-input').focus(); }
+        return;
+      }
       if (!confirm(`删除项目「${proj}」？可在回收站撤回。`)) return;
       const savedEntries = (state.entries[proj] || []).map(e => ({ ...e }));
       // 放入垃圾桶

@@ -26,54 +26,6 @@
   }
   header h1 { font-size: 16px; font-weight: 600; flex: 1; min-width: 80px; }
 
-  /* 搜索展开行 — 默认隐藏，点放大镜后显示 */
-  .header-row2 {
-    width: 100%;
-    display: none;
-    gap: 8px;
-    align-items: center;
-  }
-  .header-row2.open { display: flex; }
-
-  #search-toggle {
-    background: none;
-    border: none;
-    color: rgba(255,255,255,0.8);
-    font-size: 16px;
-    cursor: pointer;
-    padding: 4px 6px;
-    border-radius: 6px;
-    line-height: 1;
-  }
-  #search-toggle:hover { background: rgba(255,255,255,0.1); }
-
-  #search-input {
-    flex: 1;
-    border: none;
-    border-radius: 6px;
-    padding: 6px 10px;
-    font-size: 13px;
-    outline: none;
-    background: rgba(255,255,255,0.15);
-    color: white;
-    font-family: inherit;
-    min-width: 0;
-  }
-  #search-input::placeholder { color: rgba(255,255,255,0.5); }
-  #search-input:focus { background: rgba(255,255,255,0.25); }
-  #time-filter {
-    border: none;
-    border-radius: 6px;
-    padding: 6px 8px;
-    font-size: 12px;
-    background: rgba(255,255,255,0.15);
-    color: white;
-    outline: none;
-    cursor: pointer;
-    font-family: inherit;
-    flex-shrink: 0;
-  }
-  #time-filter option { background: #1a1a2e; color: white; }
   .header-btn {
     background: #325f9e;
     color: white;
@@ -314,6 +266,26 @@
   }
   .entry-actions .edit-btn:hover { color: #325f9e; background: #eef3ff; }
   .entry-actions .delete-entry:hover { color: #e74c3c; background: #fff0f0; }
+  .entry-actions .more-btn:hover { color: #555; background: #f0f2f5; }
+
+  /* 扩展菜单 */
+  .entry-more-menu {
+    position: absolute; right: 0; top: 100%;
+    background: white; border: 1px solid #e0e4ea;
+    border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    z-index: 50; min-width: 120px; overflow: hidden;
+    display: none;
+  }
+  .entry-more-menu.show { display: block; }
+  .entry-more-menu button {
+    display: flex; align-items: center; gap: 7px;
+    width: 100%; padding: 8px 12px; font-size: 12px;
+    color: #333; background: none; border: none;
+    cursor: pointer; text-align: left; white-space: nowrap;
+  }
+  .entry-more-menu button:hover { background: #f5f7fa; }
+  .entry-more-menu .menu-del:hover { color: #e74c3c; background: #fff0f0; }
+  .entry-more-menu .menu-repeat:hover { color: #27ae60; background: #f0fff4; }
 
   .empty-hint { color: #ccc; font-size: 12px; text-align: center; padding: 20px 0; }
   .all-done-hint { color: #27ae60; font-size: 13px; text-align: center; padding: 10px 0 4px; font-weight: 600; }
@@ -800,30 +772,85 @@
   }
   .report-link-btn:hover { background: #f0f6ff; }
 
-  /* 信封通知按钮 */
-  #notif-btn {
+  /* 扩展按钮 */
+  #more-header-btn {
     background: none; border: none; color: white;
-    font-size: 18px; cursor: pointer; padding: 4px 6px;
-    border-radius: 6px; position: relative; line-height: 1;
-    flex-shrink: 0;
+    cursor: pointer; padding: 4px 8px; border-radius: 6px;
+    position: relative; line-height: 1; flex-shrink: 0;
+    display: flex; align-items: center;
   }
-  #notif-btn:hover { background: rgba(255,255,255,0.1); }
-  #notif-dot {
-    display: none; position: absolute; top: 2px; right: 2px;
-    width: 8px; height: 8px; background: #e74c3c;
+  #more-header-btn:hover { background: rgba(255,255,255,0.1); }
+  #more-header-dot {
+    display: none; position: absolute; top: 3px; right: 3px;
+    width: 7px; height: 7px; background: #e74c3c;
     border-radius: 50%; border: 1.5px solid #1a1a2e;
   }
-  #notif-dot.show { display: block; }
+  #more-header-dot.show { display: block; }
 
-  /* 通知面板 */
-  #notif-panel {
-    display: none; position: fixed; top: 52px; right: 8px;
-    width: 300px; max-height: 70vh; overflow-y: auto;
-    background: white; border-radius: 10px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-    z-index: 400; padding: 12px;
+  /* 扩展面板 */
+  #more-header-panel {
+    display: none;
+    position: fixed; top: 48px; right: 8px;
+    width: 280px;
+    background: white; border-radius: 12px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+    z-index: 400; overflow: hidden;
   }
-  #notif-panel.show { display: block; }
+  #more-header-panel.show { display: block; }
+
+  /* 搜索区 */
+  #mhp-search-row {
+    display: flex; align-items: center; gap: 6px;
+    padding: 10px 12px 8px;
+    border-bottom: 1px solid #f0f2f5;
+  }
+  #mhp-search-row #search-input {
+    flex: 1; border: 1px solid #d0d7e3; border-radius: 6px;
+    padding: 6px 10px; font-size: 13px; outline: none;
+    font-family: inherit; min-width: 0; color: #333;
+    background: white;
+  }
+  #mhp-search-row #search-input:focus { border-color: #325f9e; }
+  #mhp-search-row #time-filter {
+    border: 1px solid #d0d7e3; border-radius: 6px;
+    padding: 6px 6px; font-size: 12px;
+    background: white; color: #333; outline: none;
+    cursor: pointer; font-family: inherit; flex-shrink: 0;
+  }
+  #mhp-search-row #time-filter option { background: white; color: #333; }
+  #mhp-search-row #filter-badge {
+    display: none; background: #f97316; color: white;
+    font-size: 11px; padding: 2px 7px; border-radius: 10px;
+    cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  }
+  #mhp-search-row #filter-badge.show { display: inline-block; }
+
+  /* 功能按钮行 */
+  #mhp-actions {
+    display: flex; flex-direction: column;
+    padding: 6px 0;
+  }
+  .mhp-btn {
+    display: flex; align-items: center; gap: 9px;
+    width: 100%; padding: 10px 16px;
+    background: none; border: none; cursor: pointer;
+    font-size: 13px; color: #333; text-align: left;
+    font-family: inherit; position: relative;
+  }
+  .mhp-btn:hover { background: #f5f7fa; }
+  #overdue-btn.mhp-btn { color: #e74c3c; }
+  #overdue-btn.mhp-btn svg { stroke: #e74c3c; }
+  #overdue-count-badge {
+    display: none; background: #e74c3c; color: white;
+    font-size: 10px; font-weight: 700;
+    padding: 1px 6px; border-radius: 8px; margin-left: 2px;
+  }
+  #overdue-count-badge.show { display: inline-block; }
+  #notif-dot {
+    display: none; width: 7px; height: 7px; background: #e74c3c;
+    border-radius: 50%; margin-left: 2px; flex-shrink: 0;
+  }
+  #notif-dot.show { display: inline-block; }
   .notif-item {
     display: flex; align-items: flex-start; gap: 8px;
     padding: 8px; border-radius: 8px; background: #f7f9ff;
@@ -865,14 +892,9 @@
   .report-toggle-label { font-size: 12px; color: #555; }
 
   .entry-body { position: relative; }
+  .entry-actions { position: relative; }
 
   /* 垃圾桶弹窗 */
-  #trash-btn {
-    background: none; border: none; color: rgba(255,255,255,0.7);
-    font-size: 16px; cursor: pointer; padding: 4px 6px;
-    border-radius: 6px; flex-shrink: 0;
-  }
-  #trash-btn:hover { background: rgba(255,255,255,0.1); color: white; }
   #trash-modal {
     display: none; position: fixed; inset: 0;
     background: rgba(0,0,0,0.4); z-index: 300;
@@ -927,17 +949,21 @@
   <button class="header-btn" id="cal-toggle-btn">📋 看板</button>
   <button id="today-btn" title="今日完成">今</button>
   <div style="flex:1"></div>
-  <button class="header-btn" id="overdue-btn" style="background:#e74c3c;display:none">⏰ 超时</button>
-  <button id="search-toggle" title="搜索"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
-  <button id="notif-btn" title="AI 报告通知"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg><span id="notif-dot"></span></button>
-  <button id="trash-btn" title="回收站"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg></button>
-  <!-- 看板页：新建项目；日历页：导出 -->
   <button class="header-btn" id="board-new-btn">＋ 新建</button>
   <button class="header-btn" id="export-btn" style="display:none">导出</button>
-  <div class="header-row2">
+  <button id="more-header-btn" title="更多">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    <span id="more-header-dot"></span>
+  </button>
+</header>
+
+<!-- 扩展面板 -->
+<div id="more-header-panel">
+  <!-- 搜索区 -->
+  <div id="mhp-search-row">
     <input id="search-input" type="text" placeholder="搜索记录..." />
     <select id="time-filter">
-      <option value="all">全部</option>
+      <option value="all">全部时间</option>
       <option value="today">今日</option>
       <option value="week">本周</option>
       <option value="month">本月</option>
@@ -945,7 +971,22 @@
     </select>
     <span id="filter-badge">已筛选 ×</span>
   </div>
-</header>
+  <!-- 功能按钮行 -->
+  <div id="mhp-actions">
+    <button id="overdue-btn" class="mhp-btn" style="display:none">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      超时任务 <span id="overdue-count-badge"></span>
+    </button>
+    <button id="notif-btn" class="mhp-btn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+      通知 <span id="notif-dot"></span>
+    </button>
+    <button id="trash-btn" class="mhp-btn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+      回收站
+    </button>
+  </div>
+</div>
 
 <div id="notif-panel">
   <div id="notif-panel-title">AI 报告通知</div>
@@ -1196,6 +1237,7 @@ async function loadFromDB() {
   loadNotifications();
   renderNotifDot();
   startAutoReportScheduler();
+  resetDailyRepeatTasks();
 }
 
 function render() {
@@ -1234,10 +1276,17 @@ function render() {
     overdueBanner.textContent = `⚠️ 当前存在 ${totalOverdue} 条超时任务，点击查看`;
     overdueBanner.style.display = 'block';
     overdueBtn.style.display = '';
-    overdueBtn.textContent = `⏰ 超时 ${totalOverdue}`;
+    const badge = document.getElementById('overdue-count-badge');
+    badge.textContent = totalOverdue;
+    badge.classList.add('show');
+    document.getElementById('more-header-dot').classList.add('show');
   } else {
     overdueBanner.style.display = 'none';
     overdueBtn.style.display = 'none';
+    document.getElementById('overdue-count-badge').classList.remove('show');
+    if (!notifications.some(n => !n.read)) {
+      document.getElementById('more-header-dot').classList.remove('show');
+    }
   }
 
   state.projects.forEach(proj => {
@@ -1290,7 +1339,11 @@ function render() {
               <div class="entry-time">${formatTime(e.ts)}</div>
             </div>
             <div class="entry-actions">
-              <button class="delete-entry" data-id="${e.id}" data-proj="${proj}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
+              <button class="more-btn" data-id="${e.id}" data-proj="${proj}" title="更多操作"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+              <div class="entry-more-menu" id="more-menu-${e.id}">
+                <button class="menu-del" data-id="${e.id}" data-proj="${proj}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg> 删除</button>
+                <button class="menu-repeat" data-id="${e.id}" data-proj="${proj}" data-text="${e.text.replace(/"/g,'&quot;')}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg> 循环任务</button>
+              </div>
             </div>
           </div>`).join('');
 
@@ -1634,21 +1687,59 @@ function render() {
     });
   });
 
+  // More btn — 展开/收起扩展菜单
+  document.querySelectorAll('.more-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const { id } = btn.dataset;
+      const menu = document.getElementById(`more-menu-${id}`);
+      if (!menu) return;
+      const isOpen = menu.classList.contains('show');
+      // 关闭所有其他菜单
+      document.querySelectorAll('.entry-more-menu.show').forEach(m => m.classList.remove('show'));
+      if (!isOpen) menu.classList.add('show');
+    });
+  });
+
   // Delete entry — 放入垃圾桶
-  document.querySelectorAll('.delete-entry').forEach(btn => {
+  document.querySelectorAll('.menu-del').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const { id, proj } = btn.dataset;
+      document.querySelectorAll('.entry-more-menu.show').forEach(m => m.classList.remove('show'));
       const entry = state.entries[proj]?.find(e => e.id == id);
       if (!entry) return;
       if (!confirm(`删除「${entry.text.slice(0,20)}」？可在回收站撤回。`)) return;
-      // 放入垃圾桶
       trash.unshift({ type: 'entry', proj, entry: { ...entry }, ts: Date.now() });
       if (trash.length > 50) trash.pop();
-      // Optimistic update
       state.entries[proj] = state.entries[proj].filter(e => e.id != id);
       render();
       await sb.from('entries').delete().eq('id', id);
+    });
+  });
+
+  // Repeat task — 设置每日循环任务
+  document.querySelectorAll('.menu-repeat').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const { id, proj } = btn.dataset;
+      document.querySelectorAll('.entry-more-menu.show').forEach(m => m.classList.remove('show'));
+      const entry = state.entries[proj]?.find(e => e.id == id);
+      if (!entry) return;
+      const isRepeat = entry.text.startsWith('🔁 ');
+      if (isRepeat) {
+        if (!confirm(`取消「${entry.text.slice(3, 23)}」的每日循环？`)) return;
+        const cleanText = entry.text.slice(3);
+        entry.text = cleanText;
+        render();
+        await sb.from('entries').update({ text: cleanText }).eq('id', id);
+      } else {
+        if (!confirm(`将「${entry.text.slice(0,20)}」设为每日循环任务？\n每天完成后会在次日0点自动重置为待办。`)) return;
+        const newText = `🔁 ${entry.text}`;
+        entry.text = newText;
+        render();
+        await sb.from('entries').update({ text: newText }).eq('id', id);
+      }
     });
   });
 }
@@ -1711,13 +1802,6 @@ function renderProjDropdown(prevSelected) {
       ? prevSelected : (state.projects[0] || '');
   }
 }
-
-document.addEventListener('click', (e) => {
-  if (!document.getElementById('notif-panel').contains(e.target) &&
-      e.target !== document.getElementById('notif-btn')) {
-    document.getElementById('notif-panel').classList.remove('show');
-  }
-});
 
 // 新建项目弹窗
 document.getElementById('modal-cancel').addEventListener('click', () => {
@@ -1786,11 +1870,13 @@ document.getElementById('filter-badge').addEventListener('click', () => {
   render();
 });
 
-// 搜索放大镜展开/收起
-document.getElementById('search-toggle').addEventListener('click', () => {
-  const row = document.querySelector('.header-row2');
-  const open = row.classList.toggle('open');
-  if (open) setTimeout(() => document.getElementById('search-input').focus(), 50);
+// 扩展按钮展开/收起面板
+document.getElementById('more-header-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  document.getElementById('more-header-panel').classList.toggle('show');
+  if (document.getElementById('more-header-panel').classList.contains('show')) {
+    setTimeout(() => document.getElementById('search-input').focus(), 50);
+  }
 });
 
 // 超时提醒条点击 → 打开弹窗
@@ -2076,8 +2162,43 @@ function showDayModal(dateKey, entries) {
 
 // Palette for projects (cycles if more than 8)
 const PROJ_COLORS = ['#325f9e','#f7874f','#4fc97a','#f7c94f','#c44ff7','#f74f7a','#4fd4f7','#a0a0a0'];
+// 扩展色板，避免超过8个项目时颜色重复
+const PROJ_COLORS_EXT = [
+  '#325f9e','#f7874f','#4fc97a','#f7c94f','#c44ff7','#f74f7a','#4fd4f7','#a0a0a0',
+  '#e67e22','#1abc9c','#9b59b6','#e74c3c','#3498db','#2ecc71','#f39c12','#16a085'
+];
 
 function getProjColor(idx) { return PROJ_COLORS[idx % PROJ_COLORS.length]; }
+
+// 为一组项目分配不重复颜色（基于在 state.projects 中的位置，不足时用扩展色板）
+function assignColors(activeProjs) {
+  const colorMap = {};
+  const usedColors = new Set();
+  // 第一轮：按 state.projects 顺序分配
+  activeProjs.forEach(p => {
+    const stateIdx = state.projects.indexOf(p);
+    if (stateIdx >= 0) {
+      const color = PROJ_COLORS_EXT[stateIdx % PROJ_COLORS_EXT.length];
+      colorMap[p] = color;
+      usedColors.add(color);
+    }
+  });
+  // 第二轮：不在 state.projects 里的项目（已删除等），分配未使用的颜色
+  activeProjs.forEach(p => {
+    if (colorMap[p]) return;
+    for (let i = 0; i < PROJ_COLORS_EXT.length; i++) {
+      const color = PROJ_COLORS_EXT[i];
+      if (!usedColors.has(color)) {
+        colorMap[p] = color;
+        usedColors.add(color);
+        return;
+      }
+    }
+    // 全部用完则循环（极端情况）
+    colorMap[p] = PROJ_COLORS_EXT[activeProjs.indexOf(p) % PROJ_COLORS_EXT.length];
+  });
+  return colorMap;
+}
 
 function buildPeriodTotals(projects, doneByDate, rangeFilter) {
   // rangeFilter: function(dateKey) => bool
@@ -2098,12 +2219,10 @@ function drawPieChart(projects, totals, container) {
     return;
   }
 
-  // 找出有数据的项目，并用 state.projects 顺序确定颜色索引
+  // 找出有数据的项目，分配不重复颜色
   const activeProjs = projects.filter(p => totals[p] > 0);
-  const getColor = p => {
-    const idx = state.projects.indexOf(p);
-    return getProjColor(idx >= 0 ? idx : activeProjs.indexOf(p));
-  };
+  const colorMap = assignColors(activeProjs);
+  const getColor = p => colorMap[p] || PROJ_COLORS_EXT[0];
 
   const R = 60, CX = 70, CY = 70;
   const legendX = 148;
@@ -2212,10 +2331,11 @@ function renderFreqChart() {
 function drawLegend(projects, container) {
   container.innerHTML = '';
   container.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:8px;';
-  projects.forEach((p, i) => {
+  const colorMap = assignColors(projects);
+  projects.forEach(p => {
     const item = document.createElement('div');
     item.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;color:#555;';
-    item.innerHTML = `<span style="display:inline-block;width:12px;height:3px;border-radius:2px;background:${getProjColor(state.projects.indexOf(p) >= 0 ? state.projects.indexOf(p) : i)}"></span>${p}`;
+    item.innerHTML = `<span style="display:inline-block;width:12px;height:3px;border-radius:2px;background:${colorMap[p]}"></span>${p}`;
     container.appendChild(item);
   });
 }
@@ -2228,6 +2348,8 @@ function drawStackedBarChart(labels, projects, projData, container) {
   const H = 110;
   const chartW = W - padL - padR;
   const chartH = H - padT - padB;
+
+  const colorMap = assignColors(projects);
 
   // compute per-day totals for max scale
   const dayTotals = labels.map((_, i) => projects.reduce((s, p) => s + (projData[p][i] || 0), 0));
@@ -2264,8 +2386,8 @@ function drawStackedBarChart(labels, projects, projData, container) {
       rect.setAttribute('y', yOffset);
       rect.setAttribute('width', barW);
       rect.setAttribute('height', barH);
-      rect.setAttribute('fill', getProjColor(state.projects.indexOf(p) >= 0 ? state.projects.indexOf(p) : pi));
-      rect.setAttribute('rx', pi === 0 ? 0 : 0); // flat segments
+      rect.setAttribute('fill', colorMap[p] || PROJ_COLORS_EXT[pi % PROJ_COLORS_EXT.length]);
+      rect.setAttribute('rx', 0);
       svg.appendChild(rect);
     });
 
@@ -2304,15 +2426,12 @@ document.getElementById('cal-toggle-btn').addEventListener('click', () => {
   document.getElementById('board').classList.toggle('hidden', currentView === 'calendar');
   document.getElementById('calendar-view').classList.toggle('active', currentView === 'calendar');
   document.getElementById('cal-toggle-btn').textContent = currentView === 'calendar' ? '📅 日历' : '📋 看板';
-  // 看板页：新建按钮 + 搜索；日历页：导出按钮，隐藏搜索和回收站
   document.getElementById('board-new-btn').style.display = currentView === 'calendar' ? 'none' : '';
   document.getElementById('export-btn').style.display = currentView === 'calendar' ? '' : 'none';
-  document.getElementById('search-toggle').style.display = currentView === 'calendar' ? 'none' : '';
-  document.getElementById('trash-btn').style.display = currentView === 'calendar' ? 'none' : '';
-  // ① 日历视图隐藏搜索相关元素
-  const searchRow = document.querySelector('.header-row2');
+  // 日历视图隐藏扩展按钮，清空搜索状态
+  document.getElementById('more-header-btn').style.display = currentView === 'calendar' ? 'none' : '';
+  document.getElementById('more-header-panel').classList.remove('show');
   if (currentView === 'calendar') {
-    searchRow.classList.remove('open');
     document.getElementById('search-input').value = '';
     filterKeyword = '';
     filterRange = { type: 'all', start: null, end: null };
@@ -2361,6 +2480,7 @@ document.getElementById('day-modal').addEventListener('click', e => {
 });
 
 document.getElementById('overdue-btn').addEventListener('click', () => {
+  document.getElementById('more-header-panel').classList.remove('show');
   renderOverdueModal();
   document.getElementById('overdue-modal').classList.add('show');
 });
@@ -2532,19 +2652,58 @@ async function autoGenerateReport(type) {
   } catch (e) { console.warn('Auto report failed:', e); }
 }
 
-// 检查是否需要自动生成报告（周日 or 月末，且当天还没生成过）
+// 检查是否需要自动生成报告（周日23:00~23:59 or 月末，且当天还没生成过）
 function checkAutoReport() {
   const now = new Date();
   const isSunday = now.getDay() === 0;
+  const hour = now.getHours();
+  // 周日23点后才生成（接近24点，即周日结束时）
+  const isSundayNight = isSunday && hour >= 23;
   const isLastDayOfMonth = now.getDate() === new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
-  if (isSunday) autoGenerateReport('week');
-  if (isLastDayOfMonth) autoGenerateReport('month');
+  const isLastDayNight = isLastDayOfMonth && hour >= 23;
+  if (isSundayNight) autoGenerateReport('week');
+  if (isLastDayNight) autoGenerateReport('month');
 }
 
 // 每小时检查一次（页面打开时也立即检查）
 function startAutoReportScheduler() {
   checkAutoReport();
   setInterval(checkAutoReport, 60 * 60 * 1000);
+}
+
+// 每日循环任务重置：将昨天完成的 🔁 任务重置为今日待办
+async function resetDailyRepeatTasks() {
+  const todayStr = new Date().toDateString();
+  const lastResetKey = 'repeat_reset_date';
+  const lastReset = localStorage.getItem(lastResetKey);
+  if (lastReset === todayStr) return; // 今天已重置过
+
+  const toReset = [];
+  state.projects.forEach(proj => {
+    (state.entries[proj] || []).forEach(e => {
+      if (e.text.startsWith('🔁 ') && e.status === 'done') {
+        // 完成时间不是今天，才重置
+        if (new Date(e.ts).toDateString() !== todayStr) {
+          toReset.push({ proj, entry: e });
+        }
+      }
+    });
+  });
+
+  if (!toReset.length) {
+    localStorage.setItem(lastResetKey, todayStr);
+    return;
+  }
+
+  const now = Date.now();
+  for (const { proj, entry } of toReset) {
+    entry.status = 'todo';
+    entry.ts = now;
+    entry.origTs = now;
+    await sb.from('entries').update({ status: 'todo', ts: now, orig_ts: now }).eq('id', entry.id);
+  }
+  localStorage.setItem(lastResetKey, todayStr);
+  render();
 }
 
 // 打开 AI 报告弹窗，显示指定报告
@@ -2589,6 +2748,9 @@ function addReportNotification(type, periodKey, label) {
 function renderNotifDot() {
   const hasUnread = notifications.some(n => !n.read);
   document.getElementById('notif-dot').classList.toggle('show', hasUnread);
+  // 超时或未读通知时，扩展按钮显示红点
+  const hasOverdue = document.getElementById('overdue-count-badge').classList.contains('show');
+  document.getElementById('more-header-dot').classList.toggle('show', hasUnread || hasOverdue);
 }
 
 function renderNotifPanel() {
@@ -2630,17 +2792,28 @@ function renderNotifPanel() {
 
 document.getElementById('notif-btn').addEventListener('click', (e) => {
   e.stopPropagation();
+  document.getElementById('more-header-panel').classList.remove('show');
   const panel = document.getElementById('notif-panel');
   const isOpen = panel.classList.toggle('show');
   if (isOpen) {
     renderNotifPanel();
-    // 标记全部已读
     notifications.forEach(n => n.read = true);
     saveNotifications();
     renderNotifDot();
   }
 });
 document.addEventListener('click', (e) => {
+  // 关闭扩展菜单
+  if (!e.target.closest('.entry-actions')) {
+    document.querySelectorAll('.entry-more-menu.show').forEach(m => m.classList.remove('show'));
+  }
+  // 关闭 header 扩展面板
+  if (!document.getElementById('more-header-panel').contains(e.target) &&
+      e.target !== document.getElementById('more-header-btn') &&
+      !e.target.closest('#more-header-btn')) {
+    document.getElementById('more-header-panel').classList.remove('show');
+  }
+  // 关闭通知面板
   if (!document.getElementById('notif-panel').contains(e.target) &&
       e.target !== document.getElementById('notif-btn')) {
     document.getElementById('notif-panel').classList.remove('show');
@@ -2792,6 +2965,7 @@ function renderTrashModal() {
 }
 
 document.getElementById('trash-btn').addEventListener('click', () => {
+  document.getElementById('more-header-panel').classList.remove('show');
   renderTrashModal();
   document.getElementById('trash-modal').classList.add('show');
 });

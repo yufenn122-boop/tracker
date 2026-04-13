@@ -57,19 +57,6 @@
   }
   #today-btn:hover { background: #c0392b; }
 
-  /* 超时提醒条 */
-  #overdue-banner {
-    display: none;
-    background: #fff3cd;
-    border-bottom: 1px solid #ffc107;
-    padding: 8px 16px;
-    font-size: 13px;
-    color: #856404;
-    cursor: pointer;
-    user-select: none;
-  }
-  #overdue-banner:hover { background: #ffe69c; }
-
   /* 超时弹窗 */
   #overdue-modal {
     display: none; position: fixed; inset: 0;
@@ -988,14 +975,6 @@
   </div>
 </div>
 
-<div id="notif-panel">
-  <div id="notif-panel-title">AI 报告通知</div>
-  <div id="notif-list"></div>
-  <div id="notif-empty" style="display:none">暂无新报告</div>
-</div>
-
-<div id="overdue-banner"></div>
-
 <div id="overdue-modal">
   <div id="overdue-box">
     <h2>⏰ 超时任务</h2>
@@ -1263,8 +1242,7 @@ function render() {
   const badge = document.getElementById('filter-badge');
   badge.classList.toggle('show', isFiltering);
 
-  // 超时提醒条 + 按钮
-  const overdueBanner = document.getElementById('overdue-banner');
+  // 超时按钮
   const overdueBtn = document.getElementById('overdue-btn');
   let totalOverdue = 0;
   state.projects.forEach(proj => {
@@ -1273,15 +1251,12 @@ function render() {
     });
   });
   if (totalOverdue > 0) {
-    overdueBanner.textContent = `⚠️ 当前存在 ${totalOverdue} 条超时任务，点击查看`;
-    overdueBanner.style.display = 'block';
     overdueBtn.style.display = '';
     const badge = document.getElementById('overdue-count-badge');
     badge.textContent = totalOverdue;
     badge.classList.add('show');
     document.getElementById('more-header-dot').classList.add('show');
   } else {
-    overdueBanner.style.display = 'none';
     overdueBtn.style.display = 'none';
     document.getElementById('overdue-count-badge').classList.remove('show');
     if (!notifications.some(n => !n.read)) {
@@ -1877,12 +1852,6 @@ document.getElementById('more-header-btn').addEventListener('click', (e) => {
   if (document.getElementById('more-header-panel').classList.contains('show')) {
     setTimeout(() => document.getElementById('search-input').focus(), 50);
   }
-});
-
-// 超时提醒条点击 → 打开弹窗
-document.getElementById('overdue-banner').addEventListener('click', () => {
-  renderOverdueModal();
-  document.getElementById('overdue-modal').classList.add('show');
 });
 
 // 超时弹窗点空白关闭
@@ -2974,5 +2943,12 @@ document.getElementById('trash-modal').addEventListener('click', e => {
     document.getElementById('trash-modal').classList.remove('show');
 });
 </script>
+
+<!-- 通知浮层（放在 body 末尾确保层级正确） -->
+<div id="notif-panel">
+  <div id="notif-panel-title">AI 报告通知</div>
+  <div id="notif-list"></div>
+  <div id="notif-empty" style="display:none">暂无新报告</div>
+</div>
 </body>
 </html>

@@ -1273,7 +1273,15 @@ function render() {
     }
   }
 
-  state.projects.forEach(proj => {
+  // 有未完成任务的项目排到前面，同组内保持原顺序
+  const sortedProjects = [...state.projects].sort((a, b) => {
+    const hasTodoA = (state.entries[a] || []).some(e => e.status === 'todo' && (now - (e.origTs || e.ts)) <= OVERDUE_MS);
+    const hasTodoB = (state.entries[b] || []).some(e => e.status === 'todo' && (now - (e.origTs || e.ts)) <= OVERDUE_MS);
+    if (hasTodoA === hasTodoB) return 0;
+    return hasTodoA ? -1 : 1;
+  });
+
+  sortedProjects.forEach(proj => {
     const allEntries = state.entries[proj] || [];
 
     // 看板只显示：未超时的 todo + 今日完成的 done
@@ -2539,7 +2547,7 @@ function getSavedReport(type, periodKey) {
   return list.find(e => e.status === periodKey) || null;
 }
 
-function buildReportPrompt(byProj, label) {
+function buildReportPrompt(byProj, label, lastWeekByProj, lastWeekLabel) {
   const lines = [`以下是我${label}的任务完成记录：\n`];
   let total = 0;
   Object.entries(byProj).forEach(([proj, items]) => {
@@ -2548,8 +2556,18 @@ function buildReportPrompt(byProj, label) {
     total += items.length;
   });
   if (total === 0) return null;
-  lines.push(`\n共完成 ${total} 条任务。`);
-  lines.push('\n请用简短直接的中文输出以下内容，纯文本不用任何符号格式，风格参考：像一个了解情况的朋友在跟你说话，不废话，不用感叹号，不堆砌形容词，结论先行。\n\n分三段：\n第一段：各项目进展，每个项目一两句，说清楚做到什么程度。\n第二段：整体结论，这段时间重点在哪、推进得怎么样，一个判断。\n第三段：一句鼓励，简短，真诚，不要说"加油"之类的套话。');
+  lines.push(`\n本周共完成 ${total} 条任务。`);
+  if (lastWeekByProj && lastWeekLabel) {
+    let lastTotal = 0;
+    const lastLines = [`\n上周（${lastWeekLabel}）完成记录：\n`];
+    Object.entries(lastWeekByProj).forEach(([proj, items]) => {
+      lastLines.push(`【${proj}】${items.length}条`);
+      lastTotal += items.length;
+    });
+    lastLines.push(`上周共完成 ${lastTotal} 条任务。`);
+    lines.push(...lastLines);
+  }
+  lines.push('\n请用简短直接的中文输出以下内容，纯文本不用任何符号格式，风格参考：像一个了解情况的朋友在跟你说话，不废话，不用感叹号，不堆砌形容词，结论先行。\n\n分三段：\n第一段：任务数量统计与重心分析。说清楚本周各项目完成了几条、哪个项目占比最高、精力重心在哪里。\n第二段：与上周对比。哪些项目推进加速或停滞，整体节奏是提速还是放缓，一个判断。\n第三段：一句话，简短真诚，不要套话。');
   return lines.join('\n');
 }
 
@@ -2618,7 +2636,13 @@ async function autoGenerateReport(type) {
   const periodKey = type === 'week' ? getWeekKey(now) : getMonthKey(now);
   if (getSavedReport(type, periodKey)) return; // 已生成过
   const { byProj, label } = getRangeData(type, now);
-  const prompt = buildReportPrompt(byProj, label);
+  let lastWeekByProj = null, lastWeekLabel = null;
+  if (type === 'week') {
+    const lastWeekDate = new Date(now); lastWeekDate.setDate(now.getDate() - 7);
+    const { byProj: lbp, label: ll } = getRangeData('week', lastWeekDate);
+    lastWeekByProj = lbp; lastWeekLabel = ll;
+  }
+  const prompt = buildReportPrompt(byProj, label, lastWeekByProj, lastWeekLabel);
   if (!prompt) return;
   try {
     const content = await callAiApi(prompt);

@@ -415,6 +415,7 @@
       color: white;
     }
     .preview-label.todo { background: #f97316; }
+    .preview-label.todo.long { background: #3b82f6; }
     .preview-label.done { background: #27ae60; }
     .preview-label.empty { display: none; }
     .col-preview .preview-text {
@@ -1277,12 +1278,20 @@ function render() {
     }
   }
 
-  // 有未完成任务的项目排到前面，同组内保持原顺序
+  // 项目排序：1=有短期待办 2=只有中长期待办 3=当日已完成无待办 4=无任何任务
   const sortedProjects = [...state.projects].sort((a, b) => {
-    const hasTodoA = (state.entries[a] || []).some(e => e.status === 'todo' && (e.isLong || (now - (e.origTs || e.ts)) <= OVERDUE_MS));
-    const hasTodoB = (state.entries[b] || []).some(e => e.status === 'todo' && (e.isLong || (now - (e.origTs || e.ts)) <= OVERDUE_MS));
-    if (hasTodoA === hasTodoB) return 0;
-    return hasTodoA ? -1 : 1;
+    const rank = (proj) => {
+      const entries = state.entries[proj] || [];
+      const todayStr = new Date().toDateString();
+      const hasShortTodo = entries.some(e => e.status === 'todo' && !e.isLong && (now - (e.origTs || e.ts)) <= OVERDUE_MS);
+      if (hasShortTodo) return 1;
+      const hasLongTodo = entries.some(e => e.status === 'todo' && e.isLong);
+      if (hasLongTodo) return 2;
+      const hasTodayDone = entries.some(e => e.status === 'done' && new Date(e.ts).toDateString() === todayStr);
+      if (hasTodayDone) return 3;
+      return 4;
+    };
+    return rank(a) - rank(b);
   });
 
   sortedProjects.forEach(proj => {
@@ -1352,7 +1361,7 @@ function render() {
     const todayDone = visibleEntries.filter(e => e.status === 'done');
     const previewEntry = firstTodo || todayDone[todayDone.length - 1] || null;
     const previewHtml = previewEntry
-      ? `<span class="preview-label ${previewEntry.status}">${previewEntry.status === 'todo' ? '当前进度' : '已完成'}</span><span class="preview-text">${previewEntry.text}</span>`
+      ? `<span class="preview-label ${previewEntry.status}${previewEntry.isLong ? ' long' : ''}">${previewEntry.status === 'todo' ? '当前进度' : '已完成'}</span><span class="preview-text">${previewEntry.text}</span>`
       : '暂无记录';
 
     col.innerHTML = `

@@ -1250,6 +1250,7 @@ function render() {
   const isFiltering = filterKeyword || filterRange.type !== 'all';
   const now = Date.now();
   const OVERDUE_MS = 7 * 24 * 60 * 60 * 1000;
+  const LONG_OVERDUE_MS = 30 * 24 * 60 * 60 * 1000;
   const todayStr = new Date().toDateString();
 
   // update badge
@@ -1262,6 +1263,7 @@ function render() {
   state.projects.forEach(proj => {
     (state.entries[proj] || []).forEach(e => {
       if (e.status === 'todo' && !e.isLong && (now - (e.origTs || e.ts)) > OVERDUE_MS) totalOverdue++;
+      if (e.status === 'todo' && e.isLong && (now - (e.origTs || e.ts)) > LONG_OVERDUE_MS) totalOverdue++;
     });
   });
   if (totalOverdue > 0) {
@@ -1285,7 +1287,7 @@ function render() {
       const todayStr = new Date().toDateString();
       const hasShortTodo = entries.some(e => e.status === 'todo' && !e.isLong && (now - (e.origTs || e.ts)) <= OVERDUE_MS);
       if (hasShortTodo) return 1;
-      const hasLongTodo = entries.some(e => e.status === 'todo' && e.isLong);
+      const hasLongTodo = entries.some(e => e.status === 'todo' && e.isLong && (now - (e.origTs || e.ts)) <= LONG_OVERDUE_MS);
       if (hasLongTodo) return 2;
       const hasTodayDone = entries.some(e => e.status === 'done' && new Date(e.ts).toDateString() === todayStr);
       if (hasTodayDone) return 3;
@@ -1299,7 +1301,10 @@ function render() {
 
     // 看板只显示：未超时的 todo + 今日完成的 done
     const visibleEntries = allEntries.filter(e => {
-      if (e.status === 'todo') return e.isLong || (now - (e.origTs || e.ts)) <= OVERDUE_MS;
+      if (e.status === 'todo') {
+        if (e.isLong) return (now - (e.origTs || e.ts)) <= LONG_OVERDUE_MS;
+        return (now - (e.origTs || e.ts)) <= OVERDUE_MS;
+      }
       if (e.status === 'done') return new Date(e.ts).toDateString() === todayStr;
       return false;
     });
@@ -1322,9 +1327,9 @@ function render() {
     const col = document.createElement('div');
     col.className = 'column' + (openCols.has(proj) ? ' open' : '');
 
-    // 徽章只计未超时的 todo（短期）+ 中长期 todo
+    // 徽章只计未超时的 todo（短期）+ 未超时的中长期 todo
     const shortTodoCount = allEntries.filter(e => e.status === 'todo' && !e.isLong && (now - (e.origTs || e.ts)) <= OVERDUE_MS).length;
-    const longTodoCount = allEntries.filter(e => e.status === 'todo' && e.isLong).length;
+    const longTodoCount = allEntries.filter(e => e.status === 'todo' && e.isLong && (now - (e.origTs || e.ts)) <= LONG_OVERDUE_MS).length;
     const todoCount = shortTodoCount + longTodoCount;
     const isLongOnly = todoCount > 0 && shortTodoCount === 0;
     // allDone：有可见内容（今日done或未超时todo）且没有待办
@@ -1932,13 +1937,17 @@ document.getElementById('overdue-modal').addEventListener('click', e => {
 
 function renderOverdueModal() {
   const OVERDUE_MS = 7 * 24 * 60 * 60 * 1000;
+  const LONG_OVERDUE_MS = 30 * 24 * 60 * 60 * 1000;
   const now = Date.now();
   const content = document.getElementById('overdue-content');
   content.innerHTML = '';
 
   state.projects.forEach(proj => {
     const overdueItems = (state.entries[proj] || []).filter(
-      e => e.status === 'todo' && !e.isLong && (now - (e.origTs || e.ts)) > OVERDUE_MS
+      e => e.status === 'todo' && (
+        (!e.isLong && (now - (e.origTs || e.ts)) > OVERDUE_MS) ||
+        (e.isLong && (now - (e.origTs || e.ts)) > LONG_OVERDUE_MS)
+      )
     );
     if (!overdueItems.length) return;
 

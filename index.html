@@ -1305,6 +1305,10 @@ function render() {
     });
 
     const entries = isFiltering ? getFilteredEntries(visibleEntries) : visibleEntries;
+    entries.sort((a, b) => {
+      const rank = e => e.status === 'done' ? 3 : e.isLong ? 2 : 1;
+      return rank(a) - rank(b);
+    });
     const latest = allEntries[allEntries.length - 1];
 
     // hide column if filtering and no results

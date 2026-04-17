@@ -257,10 +257,10 @@
 
   /* 扩展菜单 */
   .entry-more-menu {
-    position: absolute; right: 0; top: 100%;
+    position: fixed;
     background: white; border: 1px solid #e0e4ea;
     border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-    z-index: 50; min-width: 120px; overflow: hidden;
+    z-index: 1000; min-width: 120px; overflow: hidden;
     display: none;
   }
   .entry-more-menu.show { display: block; }
@@ -274,7 +274,6 @@
   .entry-more-menu .menu-del:hover { color: #e74c3c; background: #fff0f0; }
   .entry-more-menu .menu-repeat:hover { color: #27ae60; background: #f0fff4; }
   .entry-more-menu .menu-longterm:hover { color: #3b82f6; background: #eff6ff; }
-  .entry-more-menu.open-up { top: auto; bottom: 100%; }
 
   .entry.todo.long .status-btn { background: #3b82f6; }
   .entry.todo.long { background: #eff6ff; }
@@ -1692,16 +1691,30 @@ function render() {
   document.querySelectorAll('.more-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
+      e.preventDefault();
       const { id } = btn.dataset;
       const menu = document.getElementById(`more-menu-${id}`);
       if (!menu) return;
       const isOpen = menu.classList.contains('show');
-      document.querySelectorAll('.entry-more-menu.show').forEach(m => { m.classList.remove('show'); m.classList.remove('open-up'); });
+      document.querySelectorAll('.entry-more-menu.show').forEach(m => m.classList.remove('show'));
       if (!isOpen) {
         const rect = btn.getBoundingClientRect();
+        const menuH = 120; // 估算菜单高度（3个按钮）
         const spaceBelow = window.innerHeight - rect.bottom;
-        menu.classList.toggle('open-up', spaceBelow < 120);
+        menu.style.left = (rect.right - 120) + 'px';
+        if (spaceBelow < menuH) {
+          menu.style.top = (rect.top - menuH) + 'px';
+        } else {
+          menu.style.top = rect.bottom + 'px';
+        }
         menu.classList.add('show');
+        // 显示后用实际高度修正
+        requestAnimationFrame(() => {
+          const actualH = menu.offsetHeight;
+          if (spaceBelow < actualH) {
+            menu.style.top = (rect.top - actualH) + 'px';
+          }
+        });
       }
     });
   });

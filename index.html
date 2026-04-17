@@ -273,6 +273,7 @@
   .entry-more-menu button:hover { background: #f5f7fa; }
   .entry-more-menu .menu-del:hover { color: #e74c3c; background: #fff0f0; }
   .entry-more-menu .menu-repeat:hover { color: #27ae60; background: #f0fff4; }
+  .entry-more-menu .menu-longterm:hover { color: #3b82f6; background: #eff6ff; }
 
   .empty-hint { color: #ccc; font-size: 12px; text-align: center; padding: 20px 0; }
   .all-done-hint { color: #27ae60; font-size: 13px; text-align: center; padding: 10px 0 4px; font-weight: 600; }
@@ -1207,7 +1208,7 @@ async function loadFromDB() {
       projects.add(row.project);
       entries[row.project] = [];
     }
-    entries[row.project].push({ id: row.id, text: row.text, status: row.status, ts: row.ts, origTs: row.orig_ts || row.ts });
+    entries[row.project].push({ id: row.id, text: row.text, status: row.status, ts: row.ts, origTs: row.orig_ts || row.ts, isLong: row.is_long || false });
   });
 
   state.projects = Array.from(projects).filter(p => !p.startsWith('__report_'));
@@ -1256,7 +1257,7 @@ function render() {
   let totalOverdue = 0;
   state.projects.forEach(proj => {
     (state.entries[proj] || []).forEach(e => {
-      if (e.status === 'todo' && (now - (e.origTs || e.ts)) > OVERDUE_MS) totalOverdue++;
+      if (e.status === 'todo' && !e.isLong && (now - (e.origTs || e.ts)) > OVERDUE_MS) totalOverdue++;
     });
   });
   if (totalOverdue > 0) {
@@ -1275,8 +1276,8 @@ function render() {
 
   // 有未完成任务的项目排到前面，同组内保持原顺序
   const sortedProjects = [...state.projects].sort((a, b) => {
-    const hasTodoA = (state.entries[a] || []).some(e => e.status === 'todo' && (now - (e.origTs || e.ts)) <= OVERDUE_MS);
-    const hasTodoB = (state.entries[b] || []).some(e => e.status === 'todo' && (now - (e.origTs || e.ts)) <= OVERDUE_MS);
+    const hasTodoA = (state.entries[a] || []).some(e => e.status === 'todo' && (e.isLong || (now - (e.origTs || e.ts)) <= OVERDUE_MS));
+    const hasTodoB = (state.entries[b] || []).some(e => e.status === 'todo' && (e.isLong || (now - (e.origTs || e.ts)) <= OVERDUE_MS));
     if (hasTodoA === hasTodoB) return 0;
     return hasTodoA ? -1 : 1;
   });
@@ -1286,7 +1287,7 @@ function render() {
 
     // 看板只显示：未超时的 todo + 今日完成的 done
     const visibleEntries = allEntries.filter(e => {
-      if (e.status === 'todo') return (now - (e.origTs || e.ts)) <= OVERDUE_MS;
+      if (e.status === 'todo') return e.isLong || (now - (e.origTs || e.ts)) <= OVERDUE_MS;
       if (e.status === 'done') return new Date(e.ts).toDateString() === todayStr;
       return false;
     });
@@ -1305,8 +1306,11 @@ function render() {
     const col = document.createElement('div');
     col.className = 'column' + (openCols.has(proj) ? ' open' : '');
 
-    // 徽章只计未超时的 todo
-    const todoCount = allEntries.filter(e => e.status === 'todo' && (now - (e.origTs || e.ts)) <= OVERDUE_MS).length;
+    // 徽章只计未超时的 todo（短期）+ 中长期 todo
+    const shortTodoCount = allEntries.filter(e => e.status === 'todo' && !e.isLong && (now - (e.origTs || e.ts)) <= OVERDUE_MS).length;
+    const longTodoCount = allEntries.filter(e => e.status === 'todo' && e.isLong).length;
+    const todoCount = shortTodoCount + longTodoCount;
+    const isLongOnly = todoCount > 0 && shortTodoCount === 0;
     // allDone：有可见内容（今日done或未超时todo）且没有待办
     const hasVisible = visibleEntries.length > 0;
     const allDone = hasVisible && todoCount === 0;
@@ -1316,10 +1320,10 @@ function render() {
     const doneCount = visibleEntries.filter(e => e.status === 'done').length;
     const totalCount = todoCount + doneCount;
     const progressDeg = totalCount > 0 ? Math.round((doneCount / totalCount) * 360) : 0;
-    const ringColor = allDone ? '#22c55e' : '#f97316';
+    const ringColor = allDone ? '#22c55e' : isLongOnly ? '#3b82f6' : '#f97316';
     const progressRingHtml = !hasVisible ? '' : allDone
       ? `<div class="circular-progress" style="background:conic-gradient(#22c55e 360deg,#e5e7eb 0deg)"><span class="progress-value-emoji">🎉</span></div>`
-      : `<div class="circular-progress" style="background:conic-gradient(${ringColor} ${progressDeg}deg,#e5e7eb 0deg)"><span class="progress-value">${todoCount}</span></div>`;
+      : `<div class="circular-progress" style="background:conic-gradient(${ringColor} ${progressDeg}deg,#e5e7eb 0deg)"><span class="progress-value" style="color:${isLongOnly ? '#3b82f6' : '#f97316'}">${todoCount}</span></div>`;
 
     const entriesHtml = entries.length === 0
       ? '<div class="empty-hint">暂无记录</div>'
@@ -1335,6 +1339,7 @@ function render() {
               <div class="entry-more-menu" id="more-menu-${e.id}">
                 <button class="menu-del" data-id="${e.id}" data-proj="${proj}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg> 删除</button>
                 <button class="menu-repeat" data-id="${e.id}" data-proj="${proj}" data-text="${e.text.replace(/"/g,'&quot;')}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg> 循环任务</button>
+                ${e.status === 'todo' ? `<button class="menu-longterm" data-id="${e.id}" data-proj="${proj}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${e.isLong ? '改为短期' : '设为中长期'}</button>` : ''}
               </div>
             </div>
           </div>`).join('');
@@ -1734,6 +1739,20 @@ function render() {
       }
     });
   });
+
+  // Long-term task toggle
+  document.querySelectorAll('.menu-longterm').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const { id, proj } = btn.dataset;
+      document.querySelectorAll('.entry-more-menu.show').forEach(m => m.classList.remove('show'));
+      const entry = state.entries[proj]?.find(e => e.id == id);
+      if (!entry) return;
+      entry.isLong = !entry.isLong;
+      render();
+      await sb.from('entries').update({ is_long: entry.isLong }).eq('id', id);
+    });
+  });
 }
 
 
@@ -1885,7 +1904,7 @@ function renderOverdueModal() {
 
   state.projects.forEach(proj => {
     const overdueItems = (state.entries[proj] || []).filter(
-      e => e.status === 'todo' && (now - (e.origTs || e.ts)) > OVERDUE_MS
+      e => e.status === 'todo' && !e.isLong && (now - (e.origTs || e.ts)) > OVERDUE_MS
     );
     if (!overdueItems.length) return;
 

@@ -274,6 +274,10 @@
   .entry-more-menu .menu-del:hover { color: #e74c3c; background: #fff0f0; }
   .entry-more-menu .menu-repeat:hover { color: #27ae60; background: #f0fff4; }
   .entry-more-menu .menu-longterm:hover { color: #3b82f6; background: #eff6ff; }
+  .entry-more-menu.open-up { top: auto; bottom: 100%; }
+
+  .entry.todo.long .status-btn { background: #3b82f6; }
+  .entry.todo.long { background: #eff6ff; }
 
   .empty-hint { color: #ccc; font-size: 12px; text-align: center; padding: 20px 0; }
   .all-done-hint { color: #27ae60; font-size: 13px; text-align: center; padding: 10px 0 4px; font-weight: 600; }
@@ -1328,7 +1332,7 @@ function render() {
     const entriesHtml = entries.length === 0
       ? '<div class="empty-hint">暂无记录</div>'
       : entries.map((e) => `
-          <div class="entry ${e.status}" data-id="${e.id}" data-proj="${proj}" data-idx="${allEntries.indexOf(e)}">
+          <div class="entry ${e.status}${e.isLong ? ' long' : ''}" data-id="${e.id}" data-proj="${proj}" data-idx="${allEntries.indexOf(e)}">
             <button class="status-btn" data-id="${e.id}" data-proj="${proj}" data-idx="${allEntries.indexOf(e)}">${e.status === 'todo' ? '待办' : '完成'}</button>
             <div class="entry-body">
               <div class="entry-text">${e.text}</div>
@@ -1692,9 +1696,13 @@ function render() {
       const menu = document.getElementById(`more-menu-${id}`);
       if (!menu) return;
       const isOpen = menu.classList.contains('show');
-      // 关闭所有其他菜单
-      document.querySelectorAll('.entry-more-menu.show').forEach(m => m.classList.remove('show'));
-      if (!isOpen) menu.classList.add('show');
+      document.querySelectorAll('.entry-more-menu.show').forEach(m => { m.classList.remove('show'); m.classList.remove('open-up'); });
+      if (!isOpen) {
+        const rect = btn.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        menu.classList.toggle('open-up', spaceBelow < 120);
+        menu.classList.add('show');
+      }
     });
   });
 

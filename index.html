@@ -905,23 +905,36 @@
 
   /* 项目历史视图 */
   #project-history-view {
-    display: none; flex-direction: row; min-height: 60vh;
+    display: none; flex-direction: column; min-height: 60vh; padding: 16px;
   }
   #project-history-view.active { display: flex; }
-  #ph-sidebar {
-    width: 160px; background: #f8f9fa; padding: 12px;
-    border-right: 1px solid #e0e4ea; overflow-y: auto; flex-shrink: 0;
+  #ph-header {
+    border-bottom: 1px solid #e0e4ea; padding-bottom: 12px; margin-bottom: 12px;
   }
-  #ph-sidebar h3 { font-size: 12px; color: #999; margin-bottom: 10px; }
-  .ph-project-item {
-    padding: 7px 10px; border-radius: 6px; cursor: pointer;
-    font-size: 13px; color: #333; margin-bottom: 3px;
+  #ph-project-name {
+    font-size: 18px; color: #1a1a2e; margin-bottom: 6px;
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
   }
-  .ph-project-item:hover { background: #e8ecf0; }
-  .ph-project-item.active { background: #3b82f6; color: white; }
-  #ph-main { flex: 1; padding: 16px; overflow-y: auto; }
-  #ph-header { border-bottom: 1px solid #e0e4ea; padding-bottom: 12px; margin-bottom: 12px; }
-  #ph-project-name { font-size: 16px; color: #1a1a2e; margin-bottom: 6px; }
+  #ph-project-name:hover { color: #3b82f6; }
+  #ph-project-dropdown {
+    display: inline-block; width: 0; height: 0;
+    border-left: 4px solid transparent; border-right: 4px solid transparent;
+    border-top: 5px solid #666; margin-left: 2px;
+  }
+  #ph-project-menu {
+    display: none; position: absolute; background: white;
+    border: 1px solid #e0e4ea; border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 100;
+    max-height: 300px; overflow-y: auto; min-width: 120px;
+  }
+  #ph-project-menu.show { display: block; }
+  .ph-menu-item {
+    padding: 8px 14px; cursor: pointer; font-size: 13px; color: #333;
+    border-bottom: 1px solid #f5f5f5;
+  }
+  .ph-menu-item:last-child { border-bottom: none; }
+  .ph-menu-item:hover { background: #f5f7fa; }
+  .ph-menu-item.active { background: #3b82f6; color: white; }
   #ph-goal { font-size: 12px; color: #3b82f6; margin-bottom: 6px; }
   #ph-goal:empty { display: none; }
   #ph-stats { font-size: 12px; color: #666; display: flex; gap: 12px; }
@@ -940,18 +953,6 @@
   .ph-entry-body { flex: 1; min-width: 0; }
   .ph-entry-text { font-size: 13px; color: #333; }
   .ph-entry-time { font-size: 11px; color: #999; margin-top: 2px; }
-
-  @media (max-width: 600px) {
-    #project-history-view { flex-direction: column; }
-    #ph-sidebar {
-      width: auto; border-right: none; border-bottom: 1px solid #e0e4ea;
-      padding: 10px; display: flex; flex-direction: row; gap: 6px;
-      overflow-x: auto; overflow-y: hidden; flex-shrink: 0;
-    }
-    #ph-sidebar h3 { display: none; }
-    .ph-project-item { white-space: nowrap; margin-bottom: 0; font-size: 12px; padding: 5px 10px; }
-    #ph-main { padding: 12px; }
-  }
 
   /* 垃圾桶弹窗 */
   #trash-modal {
@@ -1099,18 +1100,13 @@
 </div>
 
 <div id="project-history-view">
-  <div id="ph-sidebar">
-    <h3>项目列表</h3>
-    <div id="ph-project-list"></div>
+  <div id="ph-header" style="position:relative;">
+    <h2 id="ph-project-name"><span id="ph-name-text"></span><span id="ph-project-dropdown"></span></h2>
+    <div id="ph-project-menu"></div>
+    <div id="ph-goal"></div>
+    <div id="ph-stats"></div>
   </div>
-  <div id="ph-main">
-    <div id="ph-header">
-      <h2 id="ph-project-name"></h2>
-      <div id="ph-goal"></div>
-      <div id="ph-stats"></div>
-    </div>
-    <div id="ph-timeline"></div>
-  </div>
+  <div id="ph-timeline"></div>
 </div>
 
 
@@ -3209,12 +3205,13 @@ function switchToView(view) {
 }
 
 function renderProjectHistory(proj) {
-  const nameEl = document.getElementById('ph-project-name');
+  const nameText = document.getElementById('ph-name-text');
   const goalEl = document.getElementById('ph-goal');
   const statsEl = document.getElementById('ph-stats');
   const timeline = document.getElementById('ph-timeline');
 
-  nameEl.textContent = proj;
+  nameText.textContent = proj;
+  window._phCurrentProj = proj;
   const goal = state.goals[proj];
   goalEl.textContent = goal ? '🎯 ' + goal.text : '';
 
@@ -3228,7 +3225,6 @@ function renderProjectHistory(proj) {
 
   statsEl.innerHTML = `<span>已完成 ${doneEntries.length}</span><span>本周 ${weekDone.length}</span><span>待办 ${todoEntries.length}</span>`;
 
-  // 排序：待办（短期→中长期）在上，已完成按时间倒序在下
   const sorted = [
     ...todoEntries.filter(e => !e.isLong).sort((a, b) => (a.origTs || a.ts) - (b.origTs || b.ts)),
     ...todoEntries.filter(e => e.isLong).sort((a, b) => (a.origTs || a.ts) - (b.origTs || b.ts)),
@@ -3249,23 +3245,37 @@ function renderProjectHistory(proj) {
       </div>`;
     }).join('');
 
-  // 更新侧栏选中状态
-  document.querySelectorAll('.ph-project-item').forEach(el => {
+  // 更新下拉菜单选中状态
+  document.querySelectorAll('.ph-menu-item').forEach(el => {
     el.classList.toggle('active', el.dataset.proj === proj);
   });
 }
 
 function openProjectHistoryView() {
   switchToView('project-history');
-  const list = document.getElementById('ph-project-list');
-  list.innerHTML = state.projects.map(p =>
-    `<div class="ph-project-item" data-proj="${p}">${p}</div>`
+  // 构建下拉菜单
+  const menu = document.getElementById('ph-project-menu');
+  menu.innerHTML = state.projects.map(p =>
+    `<div class="ph-menu-item" data-proj="${p}">${p}</div>`
   ).join('');
-  list.querySelectorAll('.ph-project-item').forEach(el => {
-    el.addEventListener('click', () => renderProjectHistory(el.dataset.proj));
+  menu.querySelectorAll('.ph-menu-item').forEach(el => {
+    el.addEventListener('click', () => {
+      menu.classList.remove('show');
+      renderProjectHistory(el.dataset.proj);
+    });
   });
   if (state.projects.length) renderProjectHistory(state.projects[0]);
 }
+
+document.getElementById('ph-project-name').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const menu = document.getElementById('ph-project-menu');
+  menu.classList.toggle('show');
+});
+
+document.addEventListener('click', () => {
+  document.getElementById('ph-project-menu').classList.remove('show');
+});
 
 document.getElementById('project-history-btn').addEventListener('click', () => {
   document.getElementById('more-header-panel').classList.remove('show');

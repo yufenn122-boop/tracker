@@ -278,6 +278,14 @@
   .entry.todo.long .status-btn { background: #3b82f6; }
   .entry.todo.long { background: #eff6ff; }
 
+  .col-goal {
+    padding: 4px 14px 6px; font-size: 11px; cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .col-goal .goal-text { color: #3b82f6; }
+  .col-goal .goal-placeholder { color: #bbb; }
+  .col-goal .goal-placeholder:hover { color: #888; }
+
   .empty-hint { color: #ccc; font-size: 12px; text-align: center; padding: 20px 0; }
   .all-done-hint { color: #27ae60; font-size: 13px; text-align: center; padding: 10px 0 4px; font-weight: 600; }
 
@@ -1134,7 +1142,7 @@ const AUTH_EMAIL = '2777641741@qq.com';
 })();
 
 const DEFAULTS = ['家教', '督学群', '单片机', '自媒体', '雪花酥'];
-let state = { projects: [], entries: {} };
+let state = { projects: [], entries: {}, goals: {} };
 const openCols = new Set();
 let lastAutoOpenedCol = null; // ⑥ 记录最近自动展开的列
 
@@ -1207,12 +1215,17 @@ async function loadFromDB() {
   const entries = {};
   DEFAULTS.forEach(p => entries[p] = []);
 
+  const goals = {};
   data.forEach(row => {
     if (!projects.has(row.project)) {
       projects.add(row.project);
       entries[row.project] = [];
     }
-    entries[row.project].push({ id: row.id, text: row.text, status: row.status, ts: row.ts, origTs: row.orig_ts || row.ts, isLong: row.is_long || false });
+    if (row.status === 'goal') {
+      goals[row.project] = { id: row.id, text: row.text };
+    } else {
+      entries[row.project].push({ id: row.id, text: row.text, status: row.status, ts: row.ts, origTs: row.orig_ts || row.ts, isLong: row.is_long || false });
+    }
   });
 
   state.projects = Array.from(projects).filter(p => !p.startsWith('__report_'));
@@ -1226,6 +1239,7 @@ async function loadFromDB() {
   }
 
   state.entries = entries;
+  state.goals = goals;
   render();
   loadNotifications();
   renderNotifDot();
@@ -1384,6 +1398,9 @@ function render() {
           <button class="delete-col" data-proj="${proj}" title="删除项目">×</button>
           ${progressRingHtml}
         </div>
+      </div>
+      <div class="col-goal" data-proj="${proj}">
+        ${state.goals[proj] ? `<span class="goal-text">🎯 ${state.goals[proj].text}</span>` : `<span class="goal-placeholder">+ 设定目标</span>`}
       </div>
       <div class="col-preview">${previewHtml}</div>
       <div class="col-entries" id="col-${proj}">${entriesHtml}</div>
@@ -1790,6 +1807,37 @@ function render() {
       entry.isLong = !entry.isLong;
       render();
       await sb.from('entries').update({ is_long: entry.isLong }).eq('id', id);
+    });
+  });
+
+  // Goal — 点击设定/编辑目标
+  document.querySelectorAll('.col-goal').forEach(el => {
+    el.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const proj = el.dataset.proj;
+      const existing = state.goals[proj];
+      const input = prompt(existing ? '编辑目标（清空则删除）：' : '设定目标：', existing ? existing.text : '');
+      if (input === null) return; // 取消
+      const text = input.trim();
+      if (existing && !text) {
+        // 删除目标
+        delete state.goals[proj];
+        render();
+        await sb.from('entries').delete().eq('id', existing.id);
+      } else if (existing && text) {
+        // 修改目标
+        existing.text = text;
+        render();
+        await sb.from('entries').update({ text }).eq('id', existing.id);
+      } else if (!existing && text) {
+        // 新增目标
+        const ts = Date.now();
+        state.goals[proj] = { id: 'temp_goal_' + ts, text };
+        render();
+        const { data, error } = await sb.from('entries').insert({ project: proj, text, status: 'goal', ts, orig_ts: ts }).select().single();
+        if (error) { delete state.goals[proj]; render(); }
+        else if (data) state.goals[proj].id = data.id;
+      }
     });
   });
 }
@@ -2610,11 +2658,32 @@ function getSavedReport(type, periodKey) {
 }
 
 function buildReportPrompt(byProj, label, lastWeekByProj, lastWeekLabel) {
-  const lines = [`以下是我${label}的任务完成记录：\n`];
+  const lines = [`以下是我${label}的任务记录：\n`];
   let total = 0;
-  Object.entries(byProj).forEach(([proj, items]) => {
-    lines.push(`【${proj}】${items.length}条`);
-    items.forEach(e => lines.push(`  - ${e.text}`));
+  // 有目标的项目优先
+  const projList = Object.keys(byProj);
+  const withGoal = projList.filter(p => state.goals[p]);
+  const withoutGoal = projList.filter(p => !state.goals[p]);
+  [...withGoal, ...withoutGoal].forEach(proj => {
+    const items = byProj[proj];
+    const goal = state.goals[proj];
+    if (goal) {
+      lines.push(`【${proj}】目标：${goal.text}`);
+      // 全量已完成任务
+      const allDone = (state.entries[proj] || []).filter(e => e.status === 'done');
+      const allTodo = (state.entries[proj] || []).filter(e => e.status === 'todo');
+      lines.push(`  历史已完成共 ${allDone.length} 条：`);
+      allDone.forEach(e => lines.push(`    - ${e.text}`));
+      if (allTodo.length) {
+        lines.push(`  当前待办 ${allTodo.length} 条：`);
+        allTodo.forEach(e => lines.push(`    - ${e.text}`));
+      }
+      lines.push(`  本周完成 ${items.length} 条：`);
+      items.forEach(e => lines.push(`    - ${e.text}`));
+    } else {
+      lines.push(`【${proj}】本周完成 ${items.length} 条`);
+      items.forEach(e => lines.push(`  - ${e.text}`));
+    }
     total += items.length;
   });
   if (total === 0) return null;
@@ -2629,7 +2698,7 @@ function buildReportPrompt(byProj, label, lastWeekByProj, lastWeekLabel) {
     lastLines.push(`上周共完成 ${lastTotal} 条任务。`);
     lines.push(...lastLines);
   }
-  lines.push('\n请用简短直接的中文输出以下内容，纯文本不用任何符号格式，风格参考：像一个了解情况的朋友在跟你说话，不废话，不用感叹号，不堆砌形容词，结论先行。\n\n分三段：\n第一段：任务数量统计与重心分析。说清楚本周各项目完成了几条、哪个项目占比最高、精力重心在哪里。\n第二段：与上周对比。哪些项目推进加速或停滞，整体节奏是提速还是放缓，一个判断。\n第三段：一句话，简短真诚，不要套话。');
+  lines.push('\n请用简短直接的中文输出以下内容，纯文本不用任何符号格式，风格参考：像一个了解情况的朋友在跟你说话，不废话，不用感叹号，不堆砌形容词，结论先行。\n\n分四段：\n第一段：有目标的项目优先分析。根据目标描述、已完成任务和待办任务，判断每个项目当前大致完成了百分之多少，本周推进了多少。如果任务文本里包含分数、数量等量化指标，优先用这些数据评估进度。\n第二段：无目标的项目，按任务数量统计重心。\n第三段：与上周对比，整体节奏是提速还是放缓，一个判断。\n第四段：一句话，简短真诚，不要套话。');
   return lines.join('\n');
 }
 
@@ -2655,8 +2724,10 @@ function getRangeData(type, refDate) {
     return { byProj, label };
   }
   const byProj = {};
+  const endTs = new Date(start); endTs.setDate(start.getDate() + 7); // 周一00:00 ~ 下周一00:00
+  const endTsMs = endTs.getTime();
   state.projects.forEach(proj => {
-    const done = (state.entries[proj] || []).filter(e => e.status === 'done' && e.ts >= startTs);
+    const done = (state.entries[proj] || []).filter(e => e.status === 'done' && e.ts >= startTs && e.ts < endTsMs);
     if (done.length) byProj[proj] = done;
   });
   return { byProj, label };

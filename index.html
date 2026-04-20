@@ -903,6 +903,56 @@
   .entry-body { position: relative; }
   .entry-actions { position: relative; }
 
+  /* 项目历史视图 */
+  #project-history-view {
+    display: none; flex-direction: row; min-height: 60vh;
+  }
+  #project-history-view.active { display: flex; }
+  #ph-sidebar {
+    width: 160px; background: #f8f9fa; padding: 12px;
+    border-right: 1px solid #e0e4ea; overflow-y: auto; flex-shrink: 0;
+  }
+  #ph-sidebar h3 { font-size: 12px; color: #999; margin-bottom: 10px; }
+  .ph-project-item {
+    padding: 7px 10px; border-radius: 6px; cursor: pointer;
+    font-size: 13px; color: #333; margin-bottom: 3px;
+  }
+  .ph-project-item:hover { background: #e8ecf0; }
+  .ph-project-item.active { background: #3b82f6; color: white; }
+  #ph-main { flex: 1; padding: 16px; overflow-y: auto; }
+  #ph-header { border-bottom: 1px solid #e0e4ea; padding-bottom: 12px; margin-bottom: 12px; }
+  #ph-project-name { font-size: 16px; color: #1a1a2e; margin-bottom: 6px; }
+  #ph-goal { font-size: 12px; color: #3b82f6; margin-bottom: 6px; }
+  #ph-goal:empty { display: none; }
+  #ph-stats { font-size: 12px; color: #666; display: flex; gap: 12px; }
+  #ph-timeline { display: flex; flex-direction: column; gap: 6px; }
+  .ph-entry {
+    display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px;
+    background: white; border: 1px solid #eee; border-radius: 8px;
+  }
+  .ph-entry-status {
+    flex-shrink: 0; padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 600; margin-top: 1px;
+  }
+  .ph-entry-status.done { background: #d4edda; color: #155724; }
+  .ph-entry-status.todo { background: #fff3cd; color: #856404; }
+  .ph-entry-status.todo.long { background: #cfe2ff; color: #084298; }
+  .ph-entry-body { flex: 1; min-width: 0; }
+  .ph-entry-text { font-size: 13px; color: #333; }
+  .ph-entry-time { font-size: 11px; color: #999; margin-top: 2px; }
+
+  @media (max-width: 600px) {
+    #project-history-view { flex-direction: column; }
+    #ph-sidebar {
+      width: auto; border-right: none; border-bottom: 1px solid #e0e4ea;
+      padding: 10px; display: flex; flex-direction: row; gap: 6px;
+      overflow-x: auto; overflow-y: hidden; flex-shrink: 0;
+    }
+    #ph-sidebar h3 { display: none; }
+    .ph-project-item { white-space: nowrap; margin-bottom: 0; font-size: 12px; padding: 5px 10px; }
+    #ph-main { padding: 12px; }
+  }
+
   /* 垃圾桶弹窗 */
   #trash-modal {
     display: none; position: fixed; inset: 0;
@@ -994,6 +1044,10 @@
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
       回收站
     </button>
+    <button id="project-history-btn" class="mhp-btn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 10"/></svg>
+      项目历史
+    </button>
   </div>
 </div>
 
@@ -1041,6 +1095,21 @@
     <div id="freq-chart-area"></div>
     <div id="freq-legend"></div>
     <div id="freq-summary" style="display:none;font-size:12px;color:#555;margin-top:8px;padding-top:8px;border-top:1px solid #f0f2f5;"></div>
+  </div>
+</div>
+
+<div id="project-history-view">
+  <div id="ph-sidebar">
+    <h3>项目列表</h3>
+    <div id="ph-project-list"></div>
+  </div>
+  <div id="ph-main">
+    <div id="ph-header">
+      <h2 id="ph-project-name"></h2>
+      <div id="ph-goal"></div>
+      <div id="ph-stats"></div>
+    </div>
+    <div id="ph-timeline"></div>
   </div>
 </div>
 
@@ -2518,22 +2587,18 @@ function drawStackedBarChart(labels, projects, projData, container) {
 }
 
 document.getElementById('cal-toggle-btn').addEventListener('click', () => {
-  currentView = currentView === 'board' ? 'calendar' : 'board';
-  document.getElementById('board').classList.toggle('hidden', currentView === 'calendar');
-  document.getElementById('calendar-view').classList.toggle('active', currentView === 'calendar');
-  document.getElementById('cal-toggle-btn').textContent = currentView === 'calendar' ? '📅 日历' : '📋 看板';
-  document.getElementById('board-new-btn').style.display = currentView === 'calendar' ? 'none' : '';
-  document.getElementById('export-btn').style.display = currentView === 'calendar' ? '' : 'none';
-  // 日历视图隐藏扩展按钮，清空搜索状态
-  document.getElementById('more-header-btn').style.display = currentView === 'calendar' ? 'none' : '';
-  document.getElementById('more-header-panel').classList.remove('show');
+  if (currentView === 'board') {
+    switchToView('calendar');
+  } else {
+    switchToView('board');
+  }
   if (currentView === 'calendar') {
     document.getElementById('search-input').value = '';
     filterKeyword = '';
     filterRange = { type: 'all', start: null, end: null };
     document.getElementById('time-filter').value = 'all';
+    renderCalendar();
   }
-  if (currentView === 'calendar') renderCalendar();
 });
 
 document.getElementById('cal-prev').addEventListener('click', () => {
@@ -3128,6 +3193,83 @@ document.getElementById('trash-btn').addEventListener('click', () => {
 document.getElementById('trash-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('trash-modal'))
     document.getElementById('trash-modal').classList.remove('show');
+});
+
+// ── 项目历史视图 ──
+function switchToView(view) {
+  currentView = view;
+  document.getElementById('board').classList.toggle('hidden', view !== 'board');
+  document.getElementById('calendar-view').classList.toggle('active', view === 'calendar');
+  document.getElementById('project-history-view').classList.toggle('active', view === 'project-history');
+  document.getElementById('cal-toggle-btn').textContent = view === 'calendar' ? '📅 日历' : '📋 看板';
+  document.getElementById('board-new-btn').style.display = view === 'board' ? '' : 'none';
+  document.getElementById('export-btn').style.display = view === 'calendar' ? '' : 'none';
+  document.getElementById('more-header-btn').style.display = view === 'board' ? '' : 'none';
+  document.getElementById('more-header-panel').classList.remove('show');
+}
+
+function renderProjectHistory(proj) {
+  const nameEl = document.getElementById('ph-project-name');
+  const goalEl = document.getElementById('ph-goal');
+  const statsEl = document.getElementById('ph-stats');
+  const timeline = document.getElementById('ph-timeline');
+
+  nameEl.textContent = proj;
+  const goal = state.goals[proj];
+  goalEl.textContent = goal ? '🎯 ' + goal.text : '';
+
+  const allEntries = state.entries[proj] || [];
+  const doneEntries = allEntries.filter(e => e.status === 'done');
+  const todoEntries = allEntries.filter(e => e.status === 'todo');
+  const now = new Date();
+  const weekStart = new Date(now); weekStart.setHours(0,0,0,0);
+  weekStart.setDate(now.getDate() - (now.getDay() + 6) % 7);
+  const weekDone = doneEntries.filter(e => e.ts >= weekStart.getTime());
+
+  statsEl.innerHTML = `<span>已完成 ${doneEntries.length}</span><span>本周 ${weekDone.length}</span><span>待办 ${todoEntries.length}</span>`;
+
+  // 排序：待办（短期→中长期）在上，已完成按时间倒序在下
+  const sorted = [
+    ...todoEntries.filter(e => !e.isLong).sort((a, b) => (a.origTs || a.ts) - (b.origTs || b.ts)),
+    ...todoEntries.filter(e => e.isLong).sort((a, b) => (a.origTs || a.ts) - (b.origTs || b.ts)),
+    ...doneEntries.sort((a, b) => b.ts - a.ts)
+  ];
+
+  timeline.innerHTML = sorted.length === 0
+    ? '<div style="color:#ccc;text-align:center;padding:20px;font-size:13px;">暂无任务记录</div>'
+    : sorted.map(e => {
+      const statusClass = e.status + (e.isLong ? ' long' : '');
+      const statusText = e.status === 'done' ? '已完成' : e.isLong ? '中长期' : '待办';
+      return `<div class="ph-entry">
+        <span class="ph-entry-status ${statusClass}">${statusText}</span>
+        <div class="ph-entry-body">
+          <div class="ph-entry-text">${e.text}</div>
+          <div class="ph-entry-time">${formatTime(e.ts)}</div>
+        </div>
+      </div>`;
+    }).join('');
+
+  // 更新侧栏选中状态
+  document.querySelectorAll('.ph-project-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.proj === proj);
+  });
+}
+
+function openProjectHistoryView() {
+  switchToView('project-history');
+  const list = document.getElementById('ph-project-list');
+  list.innerHTML = state.projects.map(p =>
+    `<div class="ph-project-item" data-proj="${p}">${p}</div>`
+  ).join('');
+  list.querySelectorAll('.ph-project-item').forEach(el => {
+    el.addEventListener('click', () => renderProjectHistory(el.dataset.proj));
+  });
+  if (state.projects.length) renderProjectHistory(state.projects[0]);
+}
+
+document.getElementById('project-history-btn').addEventListener('click', () => {
+  document.getElementById('more-header-panel').classList.remove('show');
+  openProjectHistoryView();
 });
 </script>
 

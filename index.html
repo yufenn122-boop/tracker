@@ -2721,12 +2721,33 @@ function checkAutoReport() {
   const now = new Date();
   const isSunday = now.getDay() === 0;
   const hour = now.getHours();
-  // 周日23点后才生成（接近24点，即周日结束时）
   const isSundayNight = isSunday && hour >= 23;
   const isLastDayOfMonth = now.getDate() === new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
   const isLastDayNight = isLastDayOfMonth && hour >= 23;
   if (isSundayNight) autoGenerateReport('week');
   if (isLastDayNight) autoGenerateReport('month');
+
+  // 补生成：页面打开时如果上周/上月报告未生成，立即补生成
+  const lastWeek = new Date(now); lastWeek.setDate(now.getDate() - 7);
+  const lastWeekKey = getWeekKey(lastWeek);
+  if (!getSavedReport('week', lastWeekKey)) {
+    const { byProj, label } = getRangeData('week', lastWeek);
+    const prevWeek = new Date(lastWeek); prevWeek.setDate(lastWeek.getDate() - 7);
+    const { byProj: lbp, label: ll } = getRangeData('week', prevWeek);
+    const prompt = buildReportPrompt(byProj, label, lbp, ll);
+    if (prompt) callAiApi(prompt).then(content => {
+      if (content) { saveReport('week', lastWeekKey, content); addReportNotification('week', lastWeekKey, label); }
+    }).catch(() => {});
+  }
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthKey = getMonthKey(lastMonth);
+  if (!getSavedReport('month', lastMonthKey)) {
+    const { byProj, label } = getRangeData('month', lastMonth);
+    const prompt = buildReportPrompt(byProj, label);
+    if (prompt) callAiApi(prompt).then(content => {
+      if (content) { saveReport('month', lastMonthKey, content); addReportNotification('month', lastMonthKey, label); }
+    }).catch(() => {});
+  }
 }
 
 // 每小时检查一次（页面打开时也立即检查）
